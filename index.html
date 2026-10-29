@@ -1,0 +1,950 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><style>[hidden]{display:none!important}html,body{margin:0}img{max-width:100%}</style></head><body><title>قهوة الطيبين</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Lalezar&family=Readex+Pro:wght@400;500;600;700&display=swap">
+
+<style>
+/* Layout: one-screen game app. Setup panel -> board of enamel street-sign plates -> full-screen question plate.
+   Deliberately a single dark "night" look: it is played on a TV or laptop at night. */
+:root{
+  --night:#0d1423;
+  --panel:#151f35;
+  --line:rgba(240,231,212,.14);
+  --line-strong:rgba(240,231,212,.38);
+  --glow:rgba(43,84,184,.22);
+  --enamel:#1e3f94;
+  --enamel-hi:#2952b5;
+  --enamel-edge:#ece4d2;
+  --rivet:#b9b2a3;
+  --cream:#f0e7d4;
+  --muted:#97a3bd;
+  --brass:#e6b04a;
+  --brass-deep:#a2741f;
+  --brass-ink:#241904;
+  --team-ink:#15110a;
+  --bad:#e8705f;
+  --on-bad:#1a0905;
+  --good:#5cc98f;
+  --scrim:rgba(7,11,20,.9);
+  --shadow:rgba(0,0,0,.38);
+  --ring-track:rgba(240,231,212,.2);
+  --f-display:"Lalezar","Readex Pro",system-ui,Tahoma,sans-serif;
+  --f-sign:"Aref Ruqaa","Lalezar",Tahoma,serif;
+  --f-body:"Readex Pro",system-ui,"Segoe UI",Tahoma,sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0;min-height:100%;
+  background:radial-gradient(1100px 520px at 50% -8%,var(--glow),transparent 70%),var(--night);
+  background-color:var(--night);
+  color:var(--cream);font-family:var(--f-body);font-size:16px;line-height:1.6;direction:rtl;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+
+.app{
+  max-width:1500px;margin:0 auto;
+  padding-block:18px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:22px;
+}
+
+/* ---------- header ---------- */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+.logo{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(2.2rem,4.8vw,3.2rem);line-height:1.05;color:var(--brass)}
+.tag{margin:0;color:var(--muted);font-family:var(--f-sign);font-size:1.15rem}
+.modes{display:flex;flex-wrap:wrap;gap:4px;padding:4px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.mode{font-size:.92rem;padding:6px 14px;border-radius:12px;border:0;background:transparent;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.mode.is-on{background:var(--enamel);color:var(--cream);box-shadow:inset 0 0 0 2px var(--enamel),inset 0 0 0 3px var(--enamel-edge)}
+.mode.is-soon{opacity:.7;cursor:default}
+.mode small{font-size:.7rem;padding:0 7px;border-radius:999px;border:1px solid var(--line);line-height:1.6}
+
+/* ---------- shared controls ---------- */
+.primary{
+  font-family:var(--f-display);font-size:1.4rem;line-height:1;padding:15px 30px 13px;border-radius:12px;border:0;
+  background:var(--brass);color:var(--brass-ink);cursor:pointer;box-shadow:0 3px 0 var(--brass-deep);
+}
+.primary:hover{filter:brightness(1.06)}
+.primary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--brass-deep)}
+.primary:disabled{opacity:.5;cursor:not-allowed}
+.secondary{font-weight:600;padding:12px 20px;border-radius:12px;border:1.5px solid var(--enamel-edge);background:transparent;color:var(--enamel-edge);cursor:pointer}
+.ghost{font-size:.92rem;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--cream);cursor:pointer}
+.ghost:hover{border-color:var(--line-strong)}
+.ghost:disabled{opacity:.5;cursor:default}
+.linkish{border:0;background:none;padding:4px 2px;color:var(--enamel-edge);opacity:.8;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:.9rem}
+.linkish:hover{opacity:1}
+.msg{margin:0;color:var(--muted);min-height:1.6em}
+.msg.is-err{color:var(--bad)}
+#board-msg:empty{display:none}
+
+/* ---------- setup ---------- */
+.setup{display:flex;flex-direction:column;gap:18px;max-width:1120px;width:100%;margin:0 auto}
+.resume{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:14px;
+  background:var(--enamel);box-shadow:inset 0 0 0 3px var(--enamel),inset 0 0 0 4px var(--enamel-edge)}
+.resume p{margin:0;font-weight:500}
+.setup-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:18px}
+@media (max-width:820px){.setup-grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:1.55rem;line-height:1.2;text-wrap:balance}
+.card h2.gap{margin-top:10px}
+.row-between{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.count{color:var(--muted);font-variant-numeric:tabular-nums}
+.hint{margin:0;color:var(--muted);font-size:.92rem;max-width:62ch}
+
+.teams{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.team-row{display:flex;align-items:center;gap:10px}
+.swatch{width:14px;height:14px;border-radius:50%;background:var(--tc);flex:none}
+.team-row input{flex:1;min-width:0;background:var(--night);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.team-row input:focus{border-color:var(--brass);outline:none}
+.x{font-size:.85rem;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer}
+.x:hover{color:var(--cream);border-color:var(--line-strong)}
+
+.field{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.lbl{color:var(--muted);font-size:.92rem}
+.seg{display:inline-flex;flex-wrap:wrap;gap:3px;padding:3px;background:var(--night);border:1px solid var(--line);border-radius:12px}
+.seg button{font-size:.92rem;padding:6px 13px;border-radius:9px;border:0;background:transparent;cursor:pointer;font-variant-numeric:tabular-nums}
+.seg button:hover{background:var(--panel)}
+.seg button[aria-pressed="true"]{background:var(--brass);color:var(--brass-ink);font-weight:600}
+.switch{display:flex;align-items:center;gap:10px;cursor:pointer}
+.switch input{width:18px;height:18px;accent-color:var(--brass);margin:0}
+
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.catpick{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--line);background:transparent;text-align:start;min-width:0;
+}
+.catpick .nm{font-family:var(--f-sign);font-size:1.2rem;line-height:1.3;overflow-wrap:anywhere}
+.catpick .fresh{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.catpick:hover{border-color:var(--line-strong)}
+.catpick[aria-pressed="true"]{background:var(--enamel);border-color:var(--enamel);box-shadow:inset 0 0 0 2px var(--enamel),inset 0 0 0 3px var(--enamel-edge);color:var(--enamel-edge)}
+.catpick[aria-pressed="true"] .fresh{color:var(--enamel-edge);opacity:.8}
+.catpick:disabled{opacity:.38;cursor:not-allowed}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:14px}
+.bank-note{margin:0;color:var(--muted);font-size:.88rem}
+.brand-foot{margin:8px 0 0;color:var(--muted);font-size:.82rem;text-align:center}
+.brand-foot:empty{display:none}
+
+/* ---------- board ---------- */
+.boardscr{display:flex;flex-direction:column;gap:14px}
+.board-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.turn{margin:0;font-size:1.15rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.turn b{color:var(--tc);font-weight:700}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--tc);flex:none;display:inline-block}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.board-wrap{overflow-x:auto;padding:4px 2px 6px}
+.board{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:clamp(6px,1vw,12px);min-width:calc(var(--cols) * 96px)}
+.plate{
+  background:linear-gradient(180deg,var(--enamel-hi),var(--enamel));
+  box-shadow:inset 0 0 0 4px var(--enamel),inset 0 0 0 6px var(--enamel-edge),0 3px 0 var(--shadow);
+  border-radius:10px;color:var(--enamel-edge);
+}
+.cat{
+  min-height:clamp(70px,11vh,104px);display:flex;align-items:center;justify-content:center;
+  padding:14px 12px;text-align:center;
+  background:
+    radial-gradient(circle at 11px 11px,var(--rivet) 0 2.2px,transparent 2.9px),
+    radial-gradient(circle at calc(100% - 11px) 11px,var(--rivet) 0 2.2px,transparent 2.9px),
+    radial-gradient(circle at 11px calc(100% - 11px),var(--rivet) 0 2.2px,transparent 2.9px),
+    radial-gradient(circle at calc(100% - 11px) calc(100% - 11px),var(--rivet) 0 2.2px,transparent 2.9px),
+    linear-gradient(180deg,var(--enamel-hi),var(--enamel));
+}
+.cat-name{font-family:var(--f-sign);font-size:clamp(1.05rem,1.75vw,1.6rem);line-height:1.3;text-wrap:balance;overflow-wrap:anywhere}
+.cell{
+  position:relative;display:grid;place-items:center;width:100%;height:clamp(60px,11vh,120px);border:0;padding:0;
+  font-family:var(--f-display);font-size:clamp(1.55rem,3.3vw,3.1rem);line-height:1;color:var(--brass);
+  font-variant-numeric:tabular-nums;
+}
+button.cell{cursor:pointer;transition:transform .15s ease,filter .15s ease}
+button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
+.cell.used{background:transparent;box-shadow:inset 0 0 0 1px var(--line);border-radius:10px;color:var(--muted)}
+.cell.used .v{opacity:.32;text-decoration:line-through;text-decoration-thickness:2px}
+.cell .mark{position:absolute;inset-block-start:9px;inset-inline-start:9px;width:12px;height:12px;border-radius:50%;background:var(--tc)}
+.cell .mark.none{background:transparent;box-shadow:inset 0 0 0 2px var(--muted)}
+
+.scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.score{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 14px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.score.is-turn{border-color:var(--tc);box-shadow:0 0 0 1px var(--tc)}
+.score .nm{font-weight:600;color:var(--tc);background:none;border:0;padding:0;text-align:start;cursor:pointer;display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
+.score .pts{font-family:var(--f-display);font-size:clamp(1.9rem,3vw,2.7rem);line-height:1.15;font-variant-numeric:tabular-nums}
+.adj{display:flex;gap:6px}
+.adj button{font-size:.8rem;padding:2px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums}
+.adj button:hover{color:var(--cream);border-color:var(--line-strong)}
+
+/* ---------- question + end overlays ---------- */
+.over{
+  position:fixed;inset:0;z-index:50;background:var(--scrim);display:flex;overflow-y:auto;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+}
+.qcard{
+  width:min(1060px,100%);margin:auto;border-radius:22px;padding:clamp(26px,4.5vw,56px) clamp(20px,4vw,52px) clamp(18px,3vw,28px);
+  display:flex;flex-direction:column;align-items:center;gap:clamp(16px,2.6vw,26px);text-align:center;
+  box-shadow:inset 0 0 0 9px var(--enamel),inset 0 0 0 11px var(--enamel-edge),0 24px 70px var(--shadow);
+}
+.qmeta{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px 18px}
+.qc{font-family:var(--f-sign);font-size:clamp(1.25rem,2.2vw,1.9rem);line-height:1.3}
+.qv{font-family:var(--f-display);font-size:clamp(1.4rem,2.6vw,2.2rem);color:var(--brass);line-height:1}
+.dd{font-family:var(--f-display);background:var(--brass);color:var(--brass-ink);padding:6px 16px 4px;border-radius:999px;font-size:1.15rem;line-height:1.2}
+.qtext{margin:0;font-weight:600;font-size:clamp(1.5rem,3.8vw,3.1rem);line-height:1.5;text-wrap:balance;max-width:22em;color:var(--cream)}
+.qtimer{position:relative;width:100px;height:100px;border:0;padding:0;background:transparent;cursor:pointer;border-radius:50%}
+.qtimer svg{width:100%;height:100%;transform:rotate(-90deg);display:block}
+.qtimer .trk{stroke:var(--ring-track)}
+.qtimer .prg{stroke:var(--brass);transition:stroke-dashoffset .1s linear,stroke .3s}
+.qtimer.warn .prg{stroke:var(--bad)}
+.qtimer .n{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--f-display);font-size:2.1rem;line-height:1;color:var(--cream);font-variant-numeric:tabular-nums}
+.qtimer .n small{font-family:var(--f-body);font-size:.72rem;color:var(--enamel-edge);opacity:.85;margin-top:4px}
+.qtimer.out .n{font-size:1.1rem;color:var(--bad)}
+.qanswer{background:var(--brass);color:var(--brass-ink);border-radius:14px;padding:12px 30px 14px;display:flex;flex-direction:column;align-items:center;gap:2px;max-width:min(100%,46em)}
+.qanswer .lbl{color:var(--brass-ink);opacity:.72;font-size:.85rem}
+.qanswer strong{font-size:clamp(1.45rem,3.3vw,2.7rem);line-height:1.35;overflow-wrap:anywhere}
+.qnote{font-size:.98rem;line-height:1.6;opacity:.85;max-width:40em}
+.qnote:empty{display:none}
+.qactions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+.qcard .ghost{border-color:var(--line-strong);color:var(--enamel-edge)}
+.qjudge{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+.qjudge .lbl{margin:0;color:var(--enamel-edge);opacity:.85}
+.judge-teams{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.jt{display:inline-flex;border-radius:12px;overflow:hidden;border:2px solid var(--tc);background:var(--night)}
+.jt-ok{font-weight:700;padding:10px 16px;background:var(--tc);color:var(--team-ink);border:0;cursor:pointer;display:flex;align-items:center;gap:10px}
+.jt-ok small{font-weight:500;opacity:.8;font-variant-numeric:tabular-nums}
+.jt-ok:hover{filter:brightness(1.08)}
+.jt-bad{padding:10px 14px;background:transparent;color:var(--cream);border:0;cursor:pointer;font-size:.92rem;font-variant-numeric:tabular-nums}
+.jt-bad:hover{background:var(--panel)}
+.jt-bad:disabled{background:var(--bad);color:var(--on-bad);cursor:default}
+
+.qflag{width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+.qflag form{display:flex;flex-direction:column;gap:8px;width:min(100%,520px);text-align:start}
+.qflag label{font-size:.9rem;color:var(--enamel-edge)}
+.qflag textarea{width:100%;resize:vertical;background:var(--night);border:1px solid var(--line-strong);border-radius:10px;padding:8px 12px;min-height:64px}
+.qflag textarea:focus{outline:none;border-color:var(--brass)}
+.flag-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.flag-done{margin:0;font-size:.92rem;color:var(--enamel-edge);background:var(--night);padding:6px 14px;border-radius:8px}
+
+.endcard{width:min(640px,100%);margin:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:clamp(22px,4vw,40px);display:flex;flex-direction:column;gap:18px;text-align:center}
+.end-k{margin:0;color:var(--muted);font-size:1rem}
+.end-w{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(2rem,5.6vw,3.4rem);line-height:1.15;text-wrap:balance}
+.end-w span{color:var(--tc)}
+.rank{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.rank li{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:12px;background:var(--night)}
+.rank .pos{font-family:var(--f-display);color:var(--muted);min-width:1.4em;font-size:1.2rem}
+.rank .nm{flex:1;min-width:0;text-align:start;font-weight:600;color:var(--tc);overflow-wrap:anywhere}
+.rank .p{font-family:var(--f-display);font-size:1.6rem;line-height:1;font-variant-numeric:tabular-nums}
+.end-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+
+@media (max-width:520px){
+  .primary{font-size:1.25rem;padding:13px 22px 11px}
+  .card{padding:16px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+/* brand theme */
+
+</style>
+
+<div class="app" dir="rtl" lang="ar">
+  <header class="top">
+    <div class="brand">
+      <h1 class="logo">قهوة الطيبين</h1>
+      <p class="tag">أصدقاء ابراهيم صافي</p>
+    </div>
+    <nav class="modes" aria-label="أوضاع اللعب">
+      <span class="mode is-on" aria-current="true">لوحة الفئات</span>
+      <span class="mode is-soon" aria-disabled="true">سباق السرعة <small>قريبًا</small></span>
+      <span class="mode is-soon" aria-disabled="true">أشهر إجابة <small>قريبًا</small></span>
+    </nav>
+  </header>
+
+  <!-- SETUP -->
+  <main id="scr-setup" class="setup">
+    <section class="resume" id="resume" hidden>
+      <p id="resume-text"></p>
+      <button class="secondary" id="resume-go" type="button">أكملوا اللعب</button>
+    </section>
+
+    <div class="setup-grid">
+      <section class="card" aria-labelledby="h-teams">
+        <h2 id="h-teams">الفرق</h2>
+        <ol class="teams" id="teams"></ol>
+        <div><button class="ghost" id="add-team" type="button">+ فريق آخر</button></div>
+
+        <h2 class="gap">القواعد</h2>
+        <div class="field"><span class="lbl" id="l-cols">عدد الفئات</span><div class="seg" id="seg-cols" role="group" aria-labelledby="l-cols"></div></div>
+        <div class="field"><span class="lbl" id="l-time">وقت الإجابة</span><div class="seg" id="seg-time" role="group" aria-labelledby="l-time"></div></div>
+        <label class="switch" for="opt-deduct"><input type="checkbox" id="opt-deduct"><span>الإجابة الخاطئة تخصم النقاط</span></label>
+      </section>
+
+      <section class="card" aria-labelledby="h-cats">
+        <div class="row-between"><h2 id="h-cats">الفئات</h2><span class="count" id="cat-count"></span></div>
+        <p class="hint">اختاروا الفئات التي تحبونها، وتُكمَل الفئات الباقية عشوائيًا. الرقم بجانب كل فئة هو عدد أسئلتها التي لم تُلعب بعد.</p>
+        <div class="cats" id="cats"></div>
+        <p class="hint" id="fill-hint"></p>
+      </section>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="go" type="button">ابدأوا اللعب</button>
+      <p class="msg" id="setup-msg" role="status"></p>
+    </div>
+    <p class="bank-note" id="bank-note"></p>
+  </main>
+
+  <!-- BOARD -->
+  <main id="scr-board" class="boardscr" hidden>
+    <div class="board-bar">
+      <p class="turn" id="turn"></p>
+      <div class="tools">
+        <button class="ghost" id="b-sound" type="button"></button>
+        <button class="ghost" id="b-full" type="button">ملء الشاشة</button>
+        <button class="ghost" id="b-setup" type="button">الإعداد</button>
+        <button class="ghost" id="b-end" type="button">إنهاء اللعبة</button>
+      </div>
+    </div>
+    <p class="msg" id="board-msg" role="status"></p>
+    <div class="board-wrap"><div class="board" id="board"></div></div>
+    <div class="scores" id="scores"></div>
+  </main>
+  <p class="brand-foot"></p>
+</div>
+
+<!-- QUESTION -->
+<div class="over" id="qover" hidden role="dialog" aria-modal="true" aria-labelledby="q-text" dir="rtl" lang="ar">
+  <div class="qcard plate">
+    <div class="qmeta">
+      <span class="qc" id="q-cat"></span>
+      <span class="qv" id="q-val"></span>
+      <span class="dd" id="q-dd" hidden>سؤال مضاعف</span>
+    </div>
+    <p class="qtext" id="q-text"></p>
+    <button class="qtimer" id="q-timer" type="button">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="trk" cx="50" cy="50" r="44" fill="none" stroke-width="7"></circle>
+        <circle class="prg" id="ring" cx="50" cy="50" r="44" fill="none" stroke-width="7" stroke-linecap="round"></circle>
+      </svg>
+      <span class="n" aria-hidden="true"><span id="t-num"></span><small id="t-state"></small></span>
+    </button>
+    <div class="qanswer" id="q-answer" hidden>
+      <span class="lbl">الإجابة</span>
+      <strong id="q-a"></strong>
+      <span class="qnote" id="q-note"></span>
+    </div>
+    <div class="qactions" id="q-pre">
+      <button class="primary" id="q-reveal" type="button">أظهِر الإجابة</button>
+      <button class="ghost" id="q-swap" type="button" hidden>سؤال آخر</button>
+      <button class="ghost" id="q-cancel" type="button">العودة إلى اللوحة</button>
+    </div>
+    <div class="qjudge" id="q-post" hidden>
+      <p class="lbl">من أجاب إجابة صحيحة؟</p>
+      <div class="judge-teams" id="judge"></div>
+      <button class="ghost" id="q-none" type="button">لم يُجب أحد</button>
+    </div>
+    <div class="qflag">
+      <button class="linkish" id="flag-open" type="button">في السؤال خطأ؟</button>
+      <form id="flag-form" hidden>
+        <label for="flag-note">ما الخطأ؟ (اختياري)</label>
+        <textarea id="flag-note" maxlength="300" placeholder="مثلًا: الإجابة غير دقيقة، أو هناك إجابة صحيحة أخرى"></textarea>
+        <div class="flag-actions">
+          <button class="ghost" type="submit">أرسل البلاغ</button>
+          <button class="linkish" type="button" id="flag-cancel">إلغاء</button>
+        </div>
+      </form>
+      <p class="flag-done" id="flag-done" hidden></p>
+    </div>
+  </div>
+</div>
+
+<!-- END -->
+<div class="over" id="endover" hidden role="dialog" aria-modal="true" aria-labelledby="end-w" dir="rtl" lang="ar">
+  <div class="endcard">
+    <p class="end-k" id="end-k"></p>
+    <h2 class="end-w" id="end-w"></h2>
+    <ol class="rank" id="rank"></ol>
+    <div class="end-actions">
+      <button class="primary" id="end-new" type="button">لوحة جديدة</button>
+      <button class="ghost" id="end-back" type="button"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Brand settings and its verified question bank, exported from Supabase. Each question id is its id in the database. */
+const BRAND = {"storageKey": "qahwa-tayebeen:v1", "brandId": "5d3277bb-001d-4bbe-b43b-255d4076b749", "bankLabel": "pilot-1"};
+const BANK = [{"slug":"history","name":"التاريخ","qs":[{"id":"da98ba64-b579-4eb6-9b2d-4e2551ba0330","l":1,"q":"ما اسم السفينة الشهيرة التي غرقت في رحلتها الأولى عام 1912 بعد اصطدامها بجبل جليدي؟","a":"تيتانيك","alt":["تايتانيك","Titanic"],"opts":["لوسيتانيا","بريتانيك","كوين ماري"],"note":"اصطدمت بالجبل الجليدي ليلة 14 أبريل وغرقت فجر 15 أبريل 1912 وهي في طريقها من ساوثهامبتون إلى نيويورك."},{"id":"421bd876-a6b6-4fe1-bb11-371a83209381","l":1,"q":"في أي عام انتهت الحرب العالمية الثانية؟","a":"1945","alt":["عام 1945"],"opts":["1918","1939","1944"],"note":"انتهت رسميًا باستسلام اليابان على متن البارجة الأمريكية ميزوري في 2 سبتمبر 1945."},{"id":"9b7530c6-4a5b-4d8f-a009-bc7bb2e118b5","l":2,"q":"من القائد الذي استعاد القدس من الصليبيين عام 1187؟","a":"صلاح الدين الأيوبي","alt":["صلاح الدين","الناصر صلاح الدين"],"opts":["الظاهر بيبرس","نور الدين زنكي","سيف الدين قطز"],"note":"دخل القدس في 2 أكتوبر 1187 بعد انتصاره في معركة حطين في يوليو من العام نفسه."},{"id":"af9e27c6-a3a6-41f9-91bd-a68533b62764","l":2,"q":"ما المدينة التي فتحها السلطان العثماني محمد الثاني عام 1453؟","a":"القسطنطينية","alt":["إسطنبول","اسطنبول","الأستانة"],"opts":["أدرنة","بلغراد","فيينا"],"note":"سقطت المدينة في 29 مايو 1453، فانتهت الإمبراطورية البيزنطية ولُقّب السلطان بالفاتح."},{"id":"1854943b-f3a0-47b7-accd-88daf5213817","l":3,"q":"في أي معركة هُزم نابليون بونابرت هزيمته الأخيرة عام 1815؟","a":"واترلو","alt":["معركة واترلو","Waterloo"],"opts":["أوسترليتز","لايبزيغ","الطرف الأغر"],"note":"وقعت في 18 يونيو 1815 قرب بلدة واترلو في بلجيكا الحالية، وتنازل نابليون بعدها عن العرش للمرة الثانية."},{"id":"1e336399-7ddd-4955-9045-5cd1083dc5c7","l":3,"q":"ما آخر مملكة إسلامية في الأندلس، وقد سقطت عام 1492؟","a":"غرناطة","alt":["مملكة غرناطة","إمارة غرناطة"],"opts":["قرطبة","إشبيلية","طليطلة"],"note":"سلّمها آخر ملوكها أبو عبد الله الصغير إلى فرديناند وإيزابيلا في 2 يناير 1492."},{"id":"f67cd3c7-7364-4906-830d-ca6e144d6234","l":4,"q":"من القائد المرابطي الذي هزم ملك قشتالة ألفونسو السادس في معركة الزلاقة عام 1086؟","a":"يوسف بن تاشفين","alt":["ابن تاشفين","يوسف بن تاشفين المرابطي"],"opts":["طارق بن زياد","عبد الرحمن الداخل","يعقوب المنصور الموحدي"],"note":"وقعت المعركة في 23 أكتوبر 1086 قرب بطليوس بعد أن استنجد به ملوك الطوائف إثر سقوط طليطلة عام 1085."},{"id":"53e89f18-e0aa-408d-b7f6-8e5ed45ce403","l":4,"q":"من قائد المقاومة في منطقة الريف المغربية الذي هزم الجيش الإسباني في معركة أنوال عام 1921؟","a":"عبد الكريم الخطابي","alt":["محمد بن عبد الكريم الخطابي","الخطابي"],"opts":["عمر المختار","الأمير عبد القادر الجزائري","عز الدين القسام"],"note":"بلغت المعركة ذروتها في 22 يوليو 1921، وقُتل فيها آلاف الجنود الإسبان واختفى قائدهم الجنرال سيلفستري."},{"id":"ae188c14-75a4-437e-bd4c-6258f6a74d09","l":5,"q":"في معركة نهر طلاس عام 751، انتصر الجيش الإسلامي على جيش أي دولة؟","a":"الصين","alt":["الصين في عهد أسرة تانغ","أسرة تانغ","تانغ","الصينيون"],"opts":["الإمبراطورية البيزنطية","الدولة الساسانية","الإمبراطورية المغولية"],"note":"دارت المعركة في آسيا الوسطى قرب حدود كازاخستان وقيرغيزستان الحاليتين، وقاد الجيش الصيني القائد قاو شيان تشي."},{"id":"9f376a38-2f41-46df-8f4a-cefd205c516d","l":5,"q":"أي إمبراطور روماني هزم زنوبيا ملكة تدمر وأخضع مملكتها؟","a":"أورليان","alt":["أوريليان","أورليانوس","أوريليانوس","Aurelian"],"opts":["نيرون","تراجان","قسطنطين الأكبر"],"note":"حكم أورليان بين عامي 270 و275 للميلاد، وأعاد تدمر وأراضيها إلى سلطة روما."}]},{"slug":"geography","name":"الجغرافيا","qs":[{"id":"8d5c3b7d-f7a4-4084-9a7b-dbe82e09e285","l":1,"q":"ما أكبر محيط في العالم؟","a":"المحيط الهادئ","alt":["الهادئ","الهادي","المحيط الهادي","المحيط الباسيفيكي","الباسيفيكي"],"opts":["المحيط الأطلسي","المحيط الهندي","المحيط المتجمد الشمالي"],"note":"ويُسمّى أيضاً المحيط الباسيفيكي."},{"id":"19652dbd-cf79-4d62-80a9-d310d3a2a5bc","l":1,"q":"ما أكبر قارات العالم مساحةً؟","a":"آسيا","alt":["قارة آسيا","اسيا"],"opts":["أفريقيا","أمريكا الشمالية","القارة القطبية الجنوبية"],"note":"تبلغ مساحتها نحو 44 مليون كيلومتر مربع."},{"id":"c453835d-0fe2-42d5-9470-8515f2f876f8","l":2,"q":"ما أصغر دولة في العالم من حيث المساحة؟","a":"الفاتيكان","alt":["مدينة الفاتيكان","دولة الفاتيكان","الكرسي الرسولي"],"opts":["موناكو","سان مارينو","ناورو"],"note":"مساحتها نحو 0.44 كيلومتر مربع فقط."},{"id":"a4749285-bc1d-4d95-b599-83729a797fe5","l":2,"q":"ما عاصمة أستراليا؟","a":"كانبرا","alt":["كانبيرا","كامبرا"],"opts":["سيدني","ملبورن","بريزبن"],"note":"وهي مدينة مخططة بالكامل، اختير موقعها عام 1908، وانتقل إليها البرلمان من ملبورن عام 1927."},{"id":"8cbc5470-ce73-4e4e-b0a2-dfc6b3466ad2","l":3,"q":"إذا اعتبرنا أستراليا قارة، فما أكبر جزيرة في العالم؟","a":"غرينلاند","alt":["جرينلاند","غرينلند","جرينلند","جزيرة غرينلاند"],"opts":["بورنيو","مدغشقر","غينيا الجديدة"],"note":"تزيد مساحتها على 2 مليون كيلومتر مربع."},{"id":"6b69b766-1d3b-40a7-9dd6-ffff0fe4eca4","l":3,"q":"في أي دولة يقع الشلال صاحب أطول سقوط متواصل للمياه في العالم؟","a":"فنزويلا","alt":["فينزويلا"],"opts":["البرازيل","كولومبيا","بيرو"],"note":"اسمه شلال أنجل، ويسقط ماؤه دون انقطاع مسافة نحو 807 أمتار."},{"id":"5e453c7c-2020-403c-ab44-b9cf4d5ea352","l":4,"q":"ما أكبر دولة في العالم ليس لها أي منفذ على المحيطات؟","a":"كازاخستان","alt":["قازاخستان","كازخستان"],"opts":["منغوليا","تشاد","النيجر"],"note":"تبلغ مساحتها نحو 2.7 مليون كيلومتر مربع."},{"id":"732f3120-bf68-4932-9334-4bbecfe7d2d6","l":4,"q":"ما النهر الذي يمر بأكبر عدد من عواصم الدول في العالم؟","a":"نهر الدانوب","alt":["الدانوب","الدانوب الأزرق"],"opts":["نهر الراين","نهر الفولغا","نهر السين"],"note":"يمر بأربع عواصم دول هي فيينا وبراتيسلافا وبودابست وبلغراد."},{"id":"e7a24d1b-76e1-4a2f-bbb5-169fe0a4fce8","l":5,"q":"ليختنشتاين واحدة من دولتين فقط في العالم محاطتين بالكامل بدول ليس لها أي منفذ على المحيطات. ما الدولة الأخرى؟","a":"أوزبكستان","alt":["اوزبكستان","أوزبكيستان"],"opts":["تركمانستان","طاجيكستان","قيرغيزستان"],"note":"أي أن الوصول منها إلى المحيط يتطلب عبور حدود دولتين على الأقل."},{"id":"bc9650b6-785f-4c17-8636-4f1f29ec2341","l":5,"q":"ما البحر الوحيد في العالم الذي لا تحده أي يابسة؟","a":"بحر سارغاسو","alt":["سارغاسو","بحر سارجاسو","بحر ساراغاسو","بحر سرجاسو"],"opts":["البحر الكاريبي","بحر المرجان","بحر الشمال"],"note":"يقع بالكامل داخل المحيط الأطلسي، وتحدده التيارات البحرية بدلاً من اليابسة."}]},{"slug":"football","name":"كرة القدم","qs":[{"id":"f2ba2d49-7081-4ab5-bf3e-c819ede9e41d","l":1,"q":"ما الدولة التي استضافت نهائيات كأس العالم لكرة القدم عام 2022؟","a":"قطر","alt":[],"opts":["الإمارات","السعودية","الكويت"],"note":"أقيمت البطولة من 20 نوفمبر إلى 18 ديسمبر 2022، وكانت أول كأس عالم تُقام في دولة عربية وفي الشرق الأوسط."},{"id":"76d10278-75e5-4010-afc1-45b0d58d86b1","l":1,"q":"ما اللقب الأشهر لمنتخب مصر لكرة القدم؟","a":"الفراعنة","alt":["فراعنة"],"opts":["محاربو الصحراء","نسور قرطاج","أسود الأطلس"],"note":""},{"id":"b909648a-f081-401f-a3e8-3a9307cb72de","l":2,"q":"ما اللقب الذي يُعرف به منتخب الأردن لكرة القدم؟","a":"النشامى","alt":["نشامى"],"opts":["أسود الرافدين","الأخضر","العنابي"],"note":"كلمة النشامى تعني أصحاب الشهامة والمروءة."},{"id":"68c2aa0d-5495-4e44-b477-69d5482258a3","l":2,"q":"ما المنتخب الذي فاز بأول نسخة من كأس العالم عام 1930؟","a":"الأوروغواي","alt":["أوروغواي","الأوروجواي","أوروجواي","الأورغواي"],"opts":["الأرجنتين","البرازيل","إيطاليا"],"note":"فازت الأوروغواي على الأرجنتين 4-2 في النهائي على ملعب سينتيناريو في مونتيفيديو."},{"id":"f2198efe-9531-496d-881d-d6d47ec35053","l":3,"q":"كم مرة فاز الأسطورة بيليه بكأس العالم مع منتخب البرازيل؟","a":"3 مرات","alt":["ثلاث مرات","3","ثلاثة","ثلاث"],"opts":["5 مرات","4 مرات","مرة واحدة"],"note":"فاز بها أعوام 1958 و1962 و1970، وهو اللاعب الوحيد الذي حققها ثلاث مرات. في مونديال 1962 أُصيب في المباراة الثانية وغاب عن بقية البطولة، لكن اللقب يُحتسب له لأنه كان ضمن الفريق البطل."},{"id":"97a65657-3b88-4a5a-9ff8-b3ed8914fe0a","l":3,"q":"من المدرب الذي قاد منتخب مصر للفوز بكأس الأمم الأفريقية ثلاث مرات متتالية أعوام 2006 و2008 و2010؟","a":"حسن شحاتة","alt":["شحاتة","حسن شحاته","شحاته"],"opts":["محمود الجوهري","حسام البدري","هيكتور كوبر"],"note":"كان أول مدرب يفوز بالبطولة ثلاث مرات متتالية."},{"id":"e1315e9f-8096-4cbd-8826-a4ce16588a4a","l":4,"q":"ما أول منتخب عربي وأفريقي يفوز بمباراة في نهائيات كأس العالم، وكان ذلك على المكسيك 3-1 عام 1978؟","a":"تونس","alt":["المنتخب التونسي"],"opts":["المغرب","مصر","الجزائر"],"note":"أقيمت المباراة يوم 2 يونيو 1978 في مونديال الأرجنتين."},{"id":"a0de0f12-d86a-4527-8d61-2042be11d95d","l":4,"q":"من المدرب المصري الذي قاد منتخب الأردن إلى التأهل لأول مرة إلى نهائيات كأس آسيا عام 2004؟","a":"محمود الجوهري","alt":["الجوهري"],"opts":["حسن شحاتة","حسام حسن","فاروق جعفر"],"note":"وصل الأردن في تلك البطولة إلى ربع النهائي وخرج أمام اليابان بركلات الترجيح."},{"id":"1b4aa9ed-ff5c-4f0b-86b3-dfdadbd6f170","l":5,"q":"من اللاعب المصري الذي سجّل أول هدف لمنتخب أفريقي في تاريخ كأس العالم، أمام المجر عام 1934؟","a":"عبد الرحمن فوزي","alt":["فوزي","عبد الرحمن فوزى"],"opts":["مختار التتش","محمد لطيف","حسين حجازي"],"note":"سجّل فوزي هدفي مصر في الخسارة 4-2 أمام المجر في مونديال إيطاليا."},{"id":"7102b244-bbf4-48ed-aadf-72fa0f1439cd","l":5,"q":"في مونديال 1982 فازت الجزائر على ألمانيا الغربية 2-1، فمن سجّل هدف الفوز الجزائري؟","a":"لخضر بلومي","alt":["بلومي","الأخضر بلومي"],"opts":["مصطفى دحلب","صالح عصاد","علي فرقاني"],"note":"سجّل رابح ماجر الهدف الأول، ثم عادل رومينيغه، قبل أن يسجّل بلومي هدف الفوز بعد دقيقة واحدة."}]},{"slug":"science","name":"العلوم","qs":[{"id":"65223cea-7870-49fd-b5f4-a1b19e0bf1cb","l":1,"q":"ما أكبر كوكب في المجموعة الشمسية؟","a":"المشتري","alt":["كوكب المشتري","جوبيتر"],"opts":["زحل","أورانوس","نبتون"],"note":"المشتري أكبر كواكب المجموعة الشمسية وأقدمها."},{"id":"f5523628-bf53-4b36-8b10-3b6d441de3d0","l":1,"q":"ما الكوكب الذي يُلقَّب بالكوكب الأحمر؟","a":"المريخ","alt":["كوكب المريخ","مارس"],"opts":["الزهرة","عطارد","المشتري"],"note":"يعود لونه الأحمر إلى أكسيد الحديد المنتشر في تربته."},{"id":"2486b392-3c62-48ab-a1e1-bfeb8f34ef0b","l":2,"q":"ما الرمز الكيميائي لعنصر الذهب؟","a":"Au","alt":["AU"],"opts":["Ag","Gd","Ge"],"note":"الرمز مأخوذ من الكلمة اللاتينية aurum، وعدده الذري 79."},{"id":"8e7a2df2-7ab8-4605-aa0e-2e441bc3520a","l":2,"q":"من العالم الذي اكتشف البنسلين عام 1928؟","a":"ألكسندر فليمنغ","alt":["فليمنغ","فلمنج","ألكسندر فلمنج","فلمنغ","فليمنج","ألكسندر فليمنج"],"opts":["لويس باستور","روبرت كوخ","إدوارد جينر"],"note":"لاحظ بالصدفة أن عفنًا نما في أحد أطباق تجاربه قتل البكتيريا من حوله، ثم طوّره فلوري وتشين إلى دواء، وتقاسم الثلاثة جائزة نوبل في الطب عام 1945."},{"id":"8ec3301c-d710-4087-9e00-4bf7ff5cbb75","l":3,"q":"أي كواكب المجموعة الشمسية له أعلى درجة حرارة على سطحه؟","a":"الزهرة","alt":["كوكب الزهرة","فينوس"],"opts":["عطارد","المريخ","الأرض"],"note":"رغم أن عطارد أقرب إلى الشمس، فإن غلاف الزهرة الكثيف من ثاني أكسيد الكربون يحبس الحرارة فيتجاوز متوسط حرارة سطحها 460 درجة مئوية."},{"id":"77226b17-67e1-40a9-9858-e641bb4b07d6","l":3,"q":"ما أصغر عظمة في جسم الإنسان؟","a":"عظمة الركاب","alt":["الركاب","عظم الركاب"],"opts":["المطرقة","السندان","العظم اللامي"],"note":"تقع في الأذن الوسطى ويبلغ طولها نحو 3 ملليمترات."},{"id":"7de7fea5-35fe-44a0-82b9-1a2fd1784aec","l":4,"q":"من الطبيب العربي الذي كان أول من وصف الدورة الدموية الصغرى بين القلب والرئتين؟","a":"ابن النفيس","alt":["علاء الدين ابن النفيس","ابن نفيس"],"opts":["ابن سينا","أبو بكر الرازي","أبو القاسم الزهراوي"],"note":"درس في دمشق وعمل في البيمارستان الناصري بالقاهرة، وتوفي فيها عام 1288."},{"id":"58c7f881-686c-4da7-8a1a-0a97b2afb1c6","l":4,"q":"ما العنصر المشع الذي اكتشفه الزوجان بيير وماري كوري عام 1898 وسمّياه باسم وطن ماري؟","a":"البولونيوم","alt":["بولونيوم","Po"],"opts":["الراديوم","اليورانيوم","الثوريوم"],"note":"سُمّي نسبة إلى بولندا، وطن ماري الأصلي، ولم تكن بولندا دولة مستقلة آنذاك فأرادت ماري لفت الأنظار إليها."},{"id":"34fa98da-6792-48f2-a036-faf07417e15e","l":5,"q":"من العالم الذي اكتشف النيوترون عام 1932؟","a":"جيمس تشادويك","alt":["تشادويك","شادويك","جيمس شادويك"],"opts":["جيه جيه طومسون","نيلز بور","ماكس بلانك"],"note":"نال جائزة نوبل في الفيزياء عام 1935 على هذا الاكتشاف."},{"id":"7952d7c6-1222-4f58-b167-cdd1636d2dad","l":5,"q":"ما أكثر الغازات النبيلة وفرة في الغلاف الجوي للأرض؟","a":"الأرغون","alt":["أرغون","الآرغون","أرجون","Ar"],"opts":["النيون","الهيليوم","الكريبتون"],"note":"يشكّل نحو 0.93% من حجم الهواء الجاف."}]},{"slug":"iq","name":"ذكاء وألغاز","qs":[{"id":"a49ccff2-e007-4e65-88f5-14fcb2e4b7e5","l":1,"q":"في سباق جري، تجاوزتَ العدّاء الذي في المركز الثاني. في أي مركز أصبحت الآن؟","a":"المركز الثاني","alt":["الثاني","2","المركز 2"],"opts":["المركز الأول","المركز الثالث","لا يمكن تحديده"],"note":"عندما تتجاوز صاحب المركز الثاني فأنت تأخذ مكانه، فتصبح في المركز الثاني لا الأول."},{"id":"2fd07e11-c1fe-4934-8ff3-21c772de869c","l":1,"q":"والد سارة له خمس بنات: نادية، ونورا، ونوال، ونهى. فما اسم البنت الخامسة؟","a":"سارة","alt":[],"opts":["نجلاء","نوران","ناهد"],"note":"السؤال بدأ بعبارة والد سارة، إذن سارة نفسها هي البنت الخامسة."},{"id":"ae63bb41-7724-483d-b6f7-bf112ab43b9e","l":2,"q":"كريم أطول من يوسف، ويوسف أطول من عمر، وعمر أطول من خالد. من ثاني أقصر واحد بينهم؟","a":"عمر","alt":[],"opts":["يوسف","خالد","كريم"],"note":"الترتيب من الأطول إلى الأقصر: كريم ثم يوسف ثم عمر ثم خالد، فأقصرهم خالد وثاني أقصرهم عمر."},{"id":"5cc3479a-0376-4942-8ad7-4a1001f27264","l":2,"q":"عمر أحمد الآن ضعف عمر أخيه الصغير، وعمر أخيه الآن 6 سنوات. كم سيكون عمر أحمد عندما يصبح عمر أخيه 10 سنوات؟","a":"16 سنة","alt":["16","ستة عشر","ست عشرة سنة"],"opts":["20 سنة","12 سنة","18 سنة"],"note":"عمر أحمد الآن 12 سنة، وبعد 4 سنوات يصبح أخوه 10 سنوات ويصبح أحمد 16 سنة، فالضعف لا يبقى ثابتًا مع مرور الوقت."},{"id":"d16f7e0d-b9f1-46e7-9758-3fd4fe26582e","l":3,"q":"مضرب وكرة ثمنهما معًا 110 قروش، والمضرب أغلى من الكرة بـ 100 قرش. كم ثمن الكرة؟","a":"5 قروش","alt":["5","خمسة قروش","خمسة"],"opts":["10 قروش","55 قرشًا","15 قرشًا"],"note":"إذا كانت الكرة 5 قروش فالمضرب 105 قروش، والمجموع 110. أما لو كانت الكرة 10 قروش لصار المضرب 110 والمجموع 120."},{"id":"03f8b946-dddd-47f5-93be-c45b9624b907","l":3,"q":"ما الحرف الذي يأتي بعد ذلك في هذه السلسلة: أ، ت، ج، خ؟","a":"ذ","alt":["ذال","حرف الذال","الذال"],"opts":["د","ر","ح"],"note":"السلسلة تمشي على ترتيب الحروف الهجائية مع تخطي حرف واحد كل مرة: أ (ب) ت (ث) ج (ح) خ (د) ذ."},{"id":"df6c664a-23d3-42dc-aeb4-2af363ccb84b","l":4,"q":"حلزون في قاع بئر عمقها 10 أمتار. في كل نهار يصعد 3 أمتار، وفي كل ليلة ينزلق إلى الأسفل مترين. في أي يوم يصل إلى أعلى البئر؟","a":"اليوم الثامن","alt":["8","الثامن","اليوم 8"],"opts":["اليوم العاشر","اليوم التاسع","اليوم السابع"],"note":"يرتفع الحلزون مترًا واحدًا صافيًا كل يوم وليلة، فيبدأ اليوم الثامن على ارتفاع 7 أمتار ويصعد 3 أمتار فيصل إلى القمة قبل أن ينزلق."},{"id":"93ef17cc-9ee6-4074-8f9f-e8b7bae7a3bd","l":4,"q":"أحد ثلاثة أطفال أكل الحلوى. قال أحمد: سامي هو الذي أكلها. وقال سامي: لست أنا. وقال علي: لست أنا. إذا كان واحد فقط منهم يقول الصدق، فمن أكل الحلوى؟","a":"علي","alt":[],"opts":["أحمد","سامي","لا يمكن معرفته"],"note":"لو كان الآكل أحمد أو سامي لكان هناك صادقان اثنان. أما إذا كان الآكل عليًّا فالصادق الوحيد هو سامي، وهذا يطابق الشرط."},{"id":"8b13441b-b4fb-44e8-8236-23f0b7fe5f63","l":5,"q":"إذا كتبت كل الأعداد من 1 إلى 100، فكم مرة ستكتب الرقم 1؟","a":"21","alt":["واحد وعشرون","إحدى وعشرون","21 مرة"],"opts":["20","11","19"],"note":"يظهر الرقم 1 في خانة الآحاد 10 مرات (1 و11 و21 حتى 91)، وفي خانة العشرات 10 مرات (من 10 إلى 19)، ومرة في العدد 100، فالمجموع 21."},{"id":"c4cf9693-fd74-4eca-a789-e2ab33a4d8b2","l":5,"q":"كم درجة هي الزاوية الصغرى بين عقرب الساعات وعقرب الدقائق عندما تكون الساعة الثالثة والربع تمامًا؟","a":"7.5 درجة","alt":["7.5","سبع درجات ونصف","7 درجات ونصف"],"opts":["صفر","15 درجة","5 درجات"],"note":"عقرب الدقائق يقف على الرقم 3 تمامًا، أما عقرب الساعات فقد تحرك ربع المسافة بين 3 و4، وهذه المسافة 30 درجة، فربعها 7.5 درجة."}]},{"slug":"cars","name":"السيارات","qs":[{"id":"cc86f1d2-c6c5-4cf4-b2a4-0fdcf54b42d8","l":1,"q":"إلى أي دولة تنتمي شركة تويوتا للسيارات؟","a":"اليابان","alt":["يابانية","اليابانية"],"opts":["كوريا الجنوبية","الصين","ألمانيا"],"note":"تأسست تويوتا عام 1937، ويقع مقرها الرئيسي في مدينة تويوتا بمحافظة آيتشي."},{"id":"18f57153-cbf8-415d-8c9c-4c06d19b3084","l":1,"q":"ما الحيوان الذي يظهر في شعار شركة فيراري؟","a":"الحصان","alt":["حصان","الحصان الجامح","حصان أسود"],"opts":["الثور","الأسد","النمر"],"note":"الحصان الجامح كان شعار الطيار الإيطالي فرانشيسكو باراكا في الحرب العالمية الأولى."},{"id":"ce0e8f66-a5b7-40bb-bf76-39b1e9af940e","l":2,"q":"في أي دولة تأسست شركة فولفو للسيارات؟","a":"السويد","alt":["سويدية","السويدية"],"opts":["النرويج","الدنمارك","فنلندا"],"note":"تأسست فولفو عام 1927 في مدينة غوتنبرغ السويدية."},{"id":"f8bf8441-45c0-47a7-84aa-754e1db67426","l":2,"q":"في محرك البنزين، ما وظيفة القطعة المعروفة باسم البوجيه؟","a":"إشعال خليط الوقود والهواء","alt":["إشعال الوقود","إشعال البنزين","إحداث شرارة لإشعال الوقود","إحداث شرارة","إشعال الخليط"],"opts":["تبريد المحرك","تزييت المحرك","شحن البطارية"],"note":"يُحدث البوجيه (شمعة الإشعال) شرارة كهربائية بين قطبين فيشتعل الخليط، وتدفع الغازات الناتجة المكبس إلى الأسفل."},{"id":"81f1e394-d206-451f-8726-855100332980","l":3,"q":"قبل أن يصنع السيارات الرياضية، اشتهر مؤسس شركة لامبورغيني بصناعة أي نوع من المركبات؟","a":"الجرارات الزراعية","alt":["الجرارات","جرارات","التراكتورات"],"opts":["الدراجات النارية","الحافلات","القطارات"],"note":"أسس فيروتشيو لامبورغيني شركة لامبورغيني للجرارات عام 1948 قرب بولونيا في إيطاليا."},{"id":"7da17323-d698-4770-a222-9c9d628a20f3","l":3,"q":"علامَ ترمز الحلقات الأربع في شعار شركة أودي؟","a":"اتحاد أربع شركات سيارات","alt":["اندماج أربع شركات","أربع شركات اندمجت","أربع شركات"],"opts":["أربع دول أوروبية","عجلات السيارة الأربع","أربع بطولات سباق"],"note":"الشركات الأربع هي أودي وDKW وهورش وفاندرر، واتحدت عام 1932 باسم أوتو يونيون."},{"id":"b6f540fe-5040-4d89-8845-6efcd21f1bae","l":4,"q":"في عام 1888 قامت امرأة بأول رحلة طويلة بسيارة ذات محرك احتراق داخلي، دون علم زوجها الذي صنع هذه السيارة. ما اسمها؟","a":"بيرتا بنز","alt":["بيرثا بنز","برتا بنز","زوجة كارل بنز"],"opts":["مرسيدس يلينيك","كلارا فورد","لورا فيراري"],"note":"انطلقت مع ولديها من مدينة مانهايم إلى فورتسهايم في ألمانيا لزيارة والدتها."},{"id":"8908a067-91c5-4c79-8d10-1375f7be0403","l":4,"q":"يحمل المحرك الدوّار المعروف بالروتاري اسمَ مهندس ألماني. من هو؟","a":"فيليكس فانكل","alt":["فانكل","فيلكس فانكل","فيليكس وانكل","وانكل"],"opts":["رودولف ديزل","نيكولاوس أوتو","غوتليب دايملر"],"note":"بدل المكابس التي تصعد وتهبط، يدور داخل هذا المحرك مكبس على شكل مثلث تقريبًا."},{"id":"b0e7ab1d-5db7-4203-90e6-67ed20e7b30a","l":5,"q":"أي شركة أصبحت عام 1991 أول صانع سيارات ياباني يفوز بسباق لومان 24 ساعة؟","a":"مازدا","alt":["مزدا"],"opts":["تويوتا","نيسان","هوندا"],"note":"فازت بسيارة 787B ذات المحرك الدوّار، وهي السيارة الوحيدة بمحرك دوّار التي فازت بهذا السباق."},{"id":"6def0947-ea01-428e-992c-845340f55b4b","l":5,"q":"من أول سائق يفوز ببطولة العالم للفورمولا 1، وكان ذلك عام 1950؟","a":"جوزيبي فارينا","alt":["نينو فارينا","فارينا","جوزيبي نينو فارينا"],"opts":["خوان مانويل فانجيو","ألبرتو أسكاري","لويجي فاجيولي"],"note":"كان إيطاليًا ويقود لفريق ألفا روميو، وحسم اللقب في سباق مونزا الأخير أمام زميله فانجيو."}]},{"slug":"jordan","name":"الأردن","qs":[{"id":"7d05f450-e602-452d-a5b4-0aef368b6f5e","l":1,"q":"ما المدينة الأثرية الأردنية التي اختيرت عام 2007 ضمن عجائب الدنيا السبع الجديدة؟","a":"البتراء","alt":["بترا","البترا","المدينة الوردية"],"opts":["جرش","أم قيس","أم الجمال"],"note":"نحتها الأنباط في الصخر قبل أكثر من ألفي عام وكانت عاصمتهم."},{"id":"c2dd1da5-d907-4d6f-8dcc-910e45a46442","l":1,"q":"ما الطبق الوطني الأردني الذي يُطهى فيه اللحم باللبن الجميد ويُقدَّم فوق الأرز؟","a":"المنسف","alt":["منسف"],"opts":["المقلوبة","الكبسة","المندي"],"note":"تشتهر الكرك بإنتاج الجميد، وهو لبن مجفف يصنع منه مرق المنسف."},{"id":"436d96ae-7f7d-4300-92c6-973b565a1e2b","l":2,"q":"ما البحر الذي يطل عليه الأردن وتُعد شواطئه أخفض بقعة على اليابسة في العالم؟","a":"البحر الميت","alt":["الميت","بحر لوط"],"opts":["البحر الأحمر","بحيرة طبريا","بحر قزوين"],"note":"كان سطحه نحو 430 مترًا تحت مستوى سطح البحر في منتصف العقد الثاني من هذا القرن، ومنسوبه في تراجع مستمر."},{"id":"e5ea8bc1-b167-41c6-a6ae-ac53acc18b06","l":2,"q":"ما المدينة الساحلية الوحيدة في الأردن، وفيها ميناؤه البحري الوحيد؟","a":"العقبة","alt":["عقبة"],"opts":["إربد","الزرقاء","معان"],"note":"تقع في أقصى جنوب الأردن على رأس خليج يحمل اسمها في البحر الأحمر."},{"id":"50b77064-ffe0-4da2-85c0-85c33722cb7d","l":3,"q":"في أي عام نال الأردن استقلاله وأُعلن مملكة؟","a":"1946","alt":["عام 1946","سنة 1946"],"opts":["1921","1952","1956"],"note":"يحتفل الأردن بعيد الاستقلال في 25 أيار (مايو) من كل عام."},{"id":"073f13ec-9eb5-43ac-97b5-fac855bdd924","l":3,"q":"في أي رياضة حقق الأردن أول ميدالية ذهبية أولمبية في تاريخه؟","a":"التايكوندو","alt":["تايكوندو","التايكواندو","تايكواندو"],"opts":["الكاراتيه","الجودو","الملاكمة"],"note":"أحرزها أحمد أبو غوش في أولمبياد ريو دي جانيرو 2016 في وزن 68 كغم."},{"id":"c1ee1e1d-0d09-417a-baf5-6e75241a301b","l":4,"q":"في أي مدينة أردنية توجد خريطة فسيفسائية تُعد أقدم خريطة أصلية باقية للأراضي المقدسة؟","a":"مادبا","alt":["مأدبا","ميدبا"],"opts":["جرش","السلط","الكرك"],"note":"تقع في أرضية كنيسة القديس جاورجيوس وتعود إلى القرن السادس الميلادي، وتظهر فيها القدس في المركز."},{"id":"c4249f47-3ebe-4c00-bc2b-04aa6f56ec7a","l":4,"q":"بأي لقب اشتهر الشاعر الأردني مصطفى وهبي التل؟","a":"عرار","alt":["شاعر الأردن"],"opts":["أبو سلمى","بدوي الجبل","الأخطل الصغير"],"note":"وُلد في إربد عام 1899 ويُلقَّب أيضًا بشاعر الأردن، وفي إربد متحف يحمل اسمه."},{"id":"8f7cf99c-69f9-4e09-b758-a9cf49158daa","l":5,"q":"ما اسم الموقع الأثري في عمّان الذي عُثر فيه على تماثيل جصية من العصر الحجري الحديث تُعد من أقدم التماثيل البشرية الكبيرة في العالم؟","a":"عين غزال","alt":["عين الغزال"],"opts":["البيضا","تليلات الغسول","جاوا"],"note":"يعود تاريخها إلى نحو 6500 قبل الميلاد، وصُنعت من الجص على هيكل من القصب."},{"id":"30fcd34f-f851-4aa1-bdf6-e08ee887aa32","l":5,"q":"ما القصر الأموي في البادية الأردنية الذي يشتهر بلوحاته الجدارية الملونة وأُدرج على قائمة التراث العالمي عام 1985؟","a":"قصير عمرة","alt":["قصر عمرة","قصير عمرا","قصر عمرا"],"opts":["قصر الحرانة","قصر المشتى","قصر الطوبة"],"note":"بُني في النصف الأول من القرن الثامن الميلادي، ويرجّح نقش كُشف عنه عام 2012 أنه بُني للأمير الوليد بن يزيد قبل أن يصبح خليفة."}]},{"slug":"egypt","name":"مصر","qs":[{"id":"2d4502aa-1bb7-47d2-8fcc-caced6debea7","l":1,"q":"ما اسم التمثال الضخم على هضبة الجيزة الذي له جسم أسد ورأس إنسان؟","a":"أبو الهول","alt":["ابو الهول","تمثال أبو الهول","سفنكس"],"opts":["تمثال رمسيس الثاني","تمثال نهضة مصر","تمثال الكاتب الجالس"],"note":"يقف أبو الهول على هضبة الجيزة قرب الأهرامات."},{"id":"6487ee9e-d805-4312-944f-ec56098bd930","l":1,"q":"أي مطربة عربية لُقّبت بكوكب الشرق؟","a":"أم كلثوم","alt":["ام كلثوم","الست"],"opts":["فيروز","وردة الجزائرية","شادية"],"note":"من ألقابها أيضا سيدة الغناء العربي، وتقول إحدى الروايات إنها نالت لقب كوكب الشرق خلال حفل لها في حيفا."},{"id":"c08ed5a0-bccc-48da-97ca-28e95ed8a4a2","l":2,"q":"من الأديب المصري الذي فاز بجائزة نوبل في الأدب عام 1988؟","a":"نجيب محفوظ","alt":["محفوظ"],"opts":["طه حسين","توفيق الحكيم","يوسف إدريس"],"note":"هو أول أديب عربي يفوز بجائزة نوبل في الأدب."},{"id":"568015ef-db55-4653-ba97-7f89e70ca0f2","l":2,"q":"في أي عام أعلن جمال عبد الناصر تأميم قناة السويس؟","a":"1956","alt":["عام 1956","سنة 1956"],"opts":["1952","1967","1973"],"note":"أعلن عبد الناصر التأميم في خطاب بالإسكندرية يوم 26 يوليو 1956."},{"id":"be2adc72-a330-4167-8b4d-9d18997098ca","l":3,"q":"في أي مجال فاز العالم المصري أحمد زويل بجائزة نوبل؟","a":"الكيمياء","alt":["كيمياء","نوبل في الكيمياء"],"opts":["الفيزياء","الطب","السلام"],"note":"فاز بها عام 1999 عن أبحاثه في رصد حركة الذرات أثناء التفاعلات الكيميائية بتقنية الليزر فائق السرعة."},{"id":"11120b07-aa46-40e0-b75a-4745db1860c9","l":3,"q":"أي فرعون أمر بنحت معبدي أبو سمبل في الصخر؟","a":"رمسيس الثاني","alt":["رمسيس التاني","رعمسيس الثاني"],"opts":["توت عنخ آمون","خوفو","تحتمس الثالث"],"note":"نُقل المعبدان إلى موقع أعلى ضمن حملة اليونسكو لإنقاذهما من مياه بحيرة ناصر."},{"id":"4fe44883-c1a3-44dd-8001-41653e568c53","l":4,"q":"ما عاصمة محافظة الوادي الجديد؟","a":"الخارجة","alt":["مدينة الخارجة"],"opts":["الداخلة","الفرافرة","باريس"],"note":"الداخلة والفرافرة وباريس كلها من مراكز المحافظة، لكن العاصمة هي الخارجة."},{"id":"80b0a4fb-e033-4a8f-b653-13ecf2868c1f","l":4,"q":"في فيلم باب الحديد عام 1958، من الذي أدى شخصية قناوي بائع الجرائد؟","a":"يوسف شاهين","alt":["شاهين"],"opts":["فريد شوقي","محمود المليجي","شكري سرحان"],"note":"يوسف شاهين هو مخرج الفيلم أيضا، وشاركه البطولة فريد شوقي وهند رستم."},{"id":"22a2cc23-0f5b-41ad-99b0-a954957191bb","l":5,"q":"من هي أول امرأة مصرية تحصل على رخصة قيادة طائرة عام 1933؟","a":"لطفية النادي","alt":["لطفية النادى","لطفيه النادي","لطيفة النادي"],"opts":["هدى شعراوي","سميرة موسى","درية شفيق"],"note":"تُعد أيضا أول امرأة عربية تحصل على رخصة طيران."},{"id":"7a296c50-1586-497b-b632-bce0eb874b0c","l":5,"q":"من المخرج المصري الذي أخرج فيلم المومياء، المعروف أيضا باسم يوم أن تُحصى السنين؟","a":"شادي عبد السلام","alt":["شادي عبدالسلام","شادى عبد السلام"],"opts":["يوسف شاهين","صلاح أبو سيف","هنري بركات"],"note":"أُنتج الفيلم عام 1969، وهو الفيلم الروائي الطويل الوحيد لمخرجه، ويُعد من أهم أفلام السينما المصرية."}]},{"slug":"food","name":"الأكل","qs":[{"id":"f14eb3ad-649f-41ea-a6e7-62edda9b61e1","l":1,"q":"الطحينة التي نضعها على الفول والسلطات تُصنع من طحن أي بذور؟","a":"السمسم","alt":["سمسم","بذور السمسم"],"opts":["بذور الكتان","بذور دوار الشمس","بذور القرع"],"note":"الطحينة عجينة من بذور السمسم المطحونة، وتدخل في الحمص بالطحينة والحلاوة الطحينية."},{"id":"08866cfa-0b81-473a-b178-883e90ab528a","l":1,"q":"الزبيب فاكهة مجففة، فما الفاكهة التي يُصنع منها؟","a":"العنب","alt":["عنب"],"opts":["التين","البرقوق","التمر"],"note":"الزبيب هو ثمار أصناف معينة من العنب بعد تجفيفها."},{"id":"66e851e8-c4ee-4966-a5a8-bb4749880874","l":2,"q":"تُصنع الطعمية في مصر أساسًا من أي نوع من البقول؟","a":"الفول","alt":["فول","الفول المجروش","الفول الناشف","الفول المدشوش"],"opts":["الحمص","العدس","الفاصوليا"],"note":"في مصر تُصنع الطعمية من الفول المجفف، بينما يغلب الحمص على الفلافل في بلاد الشام."},{"id":"d464dbfd-9754-46d0-a132-bad11b49f912","l":2,"q":"في المنسف الأردني يُطبخ اللحم في صلصة من لبن رائب مجفف ومملح يُباع على شكل كرات صلبة؛ ما اسم هذا اللبن؟","a":"الجميد","alt":["جميد","اللبن الجميد","الجميد الكركي"],"opts":["اللبنة","الشنينة","القريش"],"note":"يُنقع الجميد ثم يُذاب ويُطبخ مع اللحم ليصنع صلصة المنسف التي تُسكب فوق الأرز والخبز."},{"id":"b0da9e31-80e6-4c53-b032-816fba38b596","l":3,"q":"الفسيخ الذي يأكله المصريون في شم النسيم يُصنع تقليديًا من أي نوع من الأسماك؟","a":"البوري","alt":["بوري","سمك البوري"],"opts":["القاروص","الرنجة","السلمون"],"note":"الفسيخ سمك بوري مملح ومخمر ومجفف، والرنجة سمكة مختلفة تُؤكل في المناسبة نفسها."},{"id":"f96f3685-6744-49cf-9ecb-17ad9b612697","l":3,"q":"ما الطبق المصري الشعبي الذي أدرجته اليونسكو عام 2025 على قائمة التراث الثقافي غير المادي؟","a":"الكشري","alt":["كشري","الكشرى","كشرى"],"opts":["الملوخية","الفتة","المحشي"],"note":"أُدرج في ديسمبر 2025، وهو مزيج من الأرز والمكرونة والعدس والبصل المقلي مع الصلصة والدقة."},{"id":"4d45a5f7-01e9-48a0-9381-579f6add85d8","l":4,"q":"خيوط الزعفران الحمراء هي جزء مجفف من زهرة نبات الزعفران؛ ما هذا الجزء؟","a":"المياسم","alt":["الميسم","مياسم الزهرة","ميسم الزهرة","المياسم والأقلام"],"opts":["البتلات","الأسدية","البذور"],"note":"تُقطف المياسم الحمراء من زهرة الزعفران يدويًا ثم تُجفف."},{"id":"363b9d59-c8ca-4bbc-a87f-b79fba820b5c","l":4,"q":"يُصنع المحلب الذي يُضاف إلى المعمول من لب نوى ثمرة صغيرة؛ ما هذه الثمرة؟","a":"الكرز","alt":["كرز","الكريز","الكرز البري","كرز المحلب"],"opts":["المشمش","الخوخ","الزيتون"],"note":"يأتي المحلب من نوع من الكرز يُعرف بكرز المحلب واسمه العلمي Prunus mahaleb، ويُطحن لب النواة ليصبح مسحوقًا."},{"id":"283a4464-b3ee-48af-9478-2c2f49785f79","l":5,"q":"من أي جزيرة يونانية تأتي المستكة الشهيرة التي أدرجت اليونسكو معارف زراعتها ضمن التراث الثقافي غير المادي؟","a":"خيوس","alt":["كيوس","شيوس","هيوس","جزيرة خيوس","Chios"],"opts":["كريت","رودس","سانتوريني"],"note":"المستكة راتنج يُجمع من شجيرة المصطكي بجرح لحائها صيفًا، وأُدرجت معارف زراعتها في خيوس عام 2014."},{"id":"443d9a92-7c1c-4d55-a11b-a18a00ca4737","l":5,"q":"يُحضَّر مشروب السحلب تقليديًا من دقيق يُصنع من درنات نبات زهري؛ ما هذا النبات؟","a":"الأوركيد","alt":["السحلبية","السحلبيات","زهرة الأوركيد","الأوركيدا","الأوركيد البري","زهرة السحلب"],"opts":["اللوتس","النرجس","الزنبق"],"note":"دقيق الأوركيد الأصلي نادر اليوم، لذلك يُحضّر السحلب غالبًا بنشا الذرة أو دقيق الأرز مع منكهات."}]}];
+</script>
+<script>
+(function(){
+"use strict";
+
+const KEY = BRAND.storageKey;
+const COLORS = BRAND.teamColors || ["#e6b04a","#41c7b4","#f07f66","#b195f5","#a6d15a","#62b8f0"];
+const ORD = ["الفريق الأول","الفريق الثاني","الفريق الثالث","الفريق الرابع","الفريق الخامس","الفريق السادس"];
+const VALUES = [100,200,300,400,500];
+const BY_SLUG = {}, BY_ID = {};
+BANK.forEach(c => { BY_SLUG[c.slug] = c; c.qs.forEach(q => { BY_ID[q.id] = {q, cat:c}; }); });
+const TOTAL_Q = Object.keys(BY_ID).length;
+
+const nf = new Intl.NumberFormat("ar-EG");
+const nfs = new Intl.NumberFormat("ar-EG",{signDisplay:"always"});
+const fmt = n => nf.format(n);
+const fmtS = n => nfs.format(n);
+const $ = id => document.getElementById(id);
+
+function h(tag, props, ...kids){
+  const el = document.createElement(tag);
+  if (props) for (const [k,v] of Object.entries(props)){
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") el.style.cssText = v;
+    else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const c of kids.flat()){
+    if (c == null || c === false) continue;
+    el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+function shuffle(a){ a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+function pickOne(a){ return a[Math.floor(Math.random() * a.length)]; }
+function qWord(n){ return n === 1 ? "سؤال واحد" : n === 2 ? "سؤالان" : (n >= 3 && n <= 10) ? fmt(n) + " أسئلة" : fmt(n) + " سؤالًا"; }
+
+/* ===== state (kept in this browser) ===== */
+function defaults(){
+  return {
+    teams:[{id:"t1",name:ORD[0],color:COLORS[0]},{id:"t2",name:ORD[1],color:COLORS[1]}],
+    settings:{cols:5,time:30,deduct:false,sound:true},
+    picks:[],
+    game:null,
+    recent:[],
+    flagged:[],
+    pendingFlags:[]
+  };
+}
+function normalize(s){
+  const d = defaults();
+  if (!s || typeof s !== "object") return d;
+  const out = Object.assign({}, d, s);
+  out.settings = Object.assign({}, d.settings, s.settings || {});
+  ["teams","picks","recent","flagged","pendingFlags"].forEach(k => { if (!Array.isArray(out[k])) out[k] = d[k]; });
+  if (out.teams.length < 1) out.teams = d.teams;
+  out.picks = out.picks.filter(p => BY_SLUG[p]);
+  if (out.game && (!Array.isArray(out.game.cats) || !out.game.used)) out.game = null;
+  return out;
+}
+let state = defaults();
+function load(){ try { const r = localStorage.getItem(KEY); return r ? JSON.parse(r) : null; } catch(e){ return null; } }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+const tname = (t,i) => (t.name || "").trim() || ORD[i] || ("فريق " + fmt(i+1));
+const cellQ = (g, ci, ri) => { const id = g.cats[ci].cells[ri]; return id ? BY_ID[id] : null; };
+const total = g => g.cats.reduce((n,c) => n + c.cells.filter(Boolean).length, 0);
+const remaining = g => total(g) - Object.keys(g.used).length;
+const isDone = g => !!g && remaining(g) <= 0;
+function freshCount(slug){
+  const recent = new Set(state.recent), flagged = new Set(state.flagged);
+  return BY_SLUG[slug].qs.filter(q => !recent.has(q.id) && !flagged.has(q.id)).length;
+}
+
+/* ===== where reports and game results go =====
+   Inside claude.ai: the page's own store, read back by Claude.
+   Anywhere else (the hosted site): straight into Supabase with the publishable key.
+   The database only lets this key ADD games, plays and reports; it can never read questions or answers. */
+const SB = {
+  url: "https://bsfzfarfrnxgpckmprut.supabase.co/rest/v1",
+  key: "sb_publishable_6LjuIzeMjepexKqCHCy9vQ_IcLWX4DX",
+  brand: BRAND.brandId
+};
+const IN_CLAUDE = !!(window.claude && typeof window.claude.use === "function");
+const dbPromise = IN_CLAUDE ? window.claude.use("db").then(d => d || null, () => null) : Promise.resolve(null);
+function uuid(){
+  if (window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
+}
+async function sbPost(path, body){
+  const r = await fetch(SB.url + path, {method:"POST", headers:{"apikey":SB.key, "Content-Type":"application/json", "Prefer":"return=minimal"}, body:JSON.stringify(body)});
+  if (!r.ok) throw new Error("supabase " + r.status);
+  return r;
+}
+let chain = Promise.resolve();
+function queue(fn){ chain = chain.then(fn).catch(() => {}); return chain; }
+const store = {
+  async gameStarted(g, teams, cats){
+    if (IN_CLAUDE){
+      const db = await dbPromise; if (!db) return;
+      await db.doc("games/" + g.gid).set({started_at:new Date().toISOString(), mode:"board", bank:BRAND.bankLabel, teams, categories:cats, plays:[]});
+    } else {
+      await sbPost("/games", {id:g.gid, brand_id:SB.brand, mode:"board", settings:{bank:BRAND.bankLabel, teams, categories:cats}});
+    }
+    g.synced = true; save();
+  },
+  async played(g, entries){
+    if (!g.synced) return;
+    if (IN_CLAUDE){
+      const db = await dbPromise; if (!db) return;
+      await db.doc("games/" + g.gid).update({plays:g.plays.slice(), updated_at:new Date().toISOString()});
+    } else {
+      await sbPost("/plays", entries.map(e => ({game_id:g.gid, question_id:e.qid, outcome:e.outcome, answered_by:e.team || null})));
+    }
+  },
+  async ended(g, scores){
+    if (!g.synced || !IN_CLAUDE) return;
+    const db = await dbPromise; if (!db) return;
+    await db.doc("games/" + g.gid).update({ended_at:new Date().toISOString(), scores});
+  },
+  async flag(f){
+    if (IN_CLAUDE){
+      const db = await dbPromise; if (!db) throw new Error("no-db");
+      await db.collection("flags").add(f);
+    } else {
+      await sbPost("/flags", {question_id:f.qid, game_id:f.gameSynced ? f.game : null, note:f.note || null});
+    }
+  },
+  async inactiveIds(){
+    if (IN_CLAUDE){
+      const db = await dbPromise; if (!db) return null;
+      const snap = await db.collection("flags").get();
+      return snap.docs.map(d => (d.data() || {}).qid).filter(x => typeof x === "string");
+    }
+    const r = await fetch(SB.url + "/rpc/inactive_question_ids", {method:"POST", headers:{"apikey":SB.key, "Content-Type":"application/json"}, body:"{}"});
+    if (!r.ok) throw new Error("supabase " + r.status);
+    const rows = await r.json();
+    return rows.map(x => typeof x === "string" ? x : (x && x.inactive_question_ids)).filter(Boolean);
+  }
+};
+function syncFlagsIn(){
+  queue(async () => {
+    for (const f of state.pendingFlags.slice()){
+      await store.flag(f);
+      state.pendingFlags = state.pendingFlags.filter(x => x !== f);
+      save();
+    }
+  });
+  queue(async () => {
+    const ids = await store.inactiveIds();
+    if (!ids) return;
+    const pendingIds = state.pendingFlags.map(f => f.qid);
+    // Hosted: the database decides what is out of play (a reviewed question comes back). In claude.ai: add to what this device knows.
+    const merged = IN_CLAUDE ? state.flagged.concat(ids) : ids.concat(pendingIds);
+    state.flagged = [...new Set(merged)].filter(id => BY_ID[id]);
+    save(); renderSetup();
+  });
+}
+
+/* ===== elements ===== */
+const scrSetup = $("scr-setup"), scrBoard = $("scr-board");
+const teamsEl = $("teams"), catsEl = $("cats");
+const boardEl = $("board"), scoresEl = $("scores"), turnEl = $("turn");
+const qover = $("qover"), endover = $("endover");
+const ring = $("ring"), RING = 2 * Math.PI * 44;
+ring.style.strokeDasharray = String(RING);
+
+function show(name){
+  scrSetup.hidden = name !== "setup";
+  scrBoard.hidden = name !== "board";
+  window.scrollTo(0,0);
+  if (name === "board") wake();
+}
+function setMsg(el, text, err){ el.textContent = text || ""; el.classList.toggle("is-err", !!err); }
+function keepFocus(fn){
+  const a = document.activeElement, id = a && a.id, s = a && a.selectionStart, e = a && a.selectionEnd;
+  fn();
+  if (id){ const n = $(id); if (n && n !== a){ n.focus(); try { if (s != null) n.setSelectionRange(s,e); } catch(_){} } }
+}
+
+/* ===== setup ===== */
+function renderSeg(el, opts, cur, pick){
+  el.replaceChildren(...opts.map(([v,l]) => h("button",{type:"button","aria-pressed":String(v === cur),onclick:() => pick(v)}, l)));
+}
+function renderSetup(){ keepFocus(renderSetupInner); }
+function renderSetupInner(){
+  const g = state.game, st = state.settings, cols = st.cols;
+  const left = g ? remaining(g) : 0;
+  $("resume").hidden = !(g && left > 0);
+  if (g && left > 0) $("resume-text").textContent = "لديكم لوحة لم تكتمل، بقي فيها " + qWord(left) + ".";
+
+  teamsEl.replaceChildren(...state.teams.map((t,i) => h("li",{class:"team-row",style:"--tc:" + t.color},
+    h("span",{class:"swatch","aria-hidden":"true"}),
+    h("input",{id:"team-" + t.id,value:t.name,maxlength:24,placeholder:ORD[i] || "",autocomplete:"off","aria-label":"اسم " + (ORD[i] || "الفريق"),
+      oninput:e => { t.name = e.target.value; save(); }}),
+    state.teams.length > 2 ? h("button",{class:"x",type:"button","aria-label":"احذف " + tname(t,i),onclick:() => removeTeam(t.id)},"حذف") : null
+  )));
+  $("add-team").disabled = state.teams.length >= 6;
+
+  renderSeg($("seg-cols"), [[4,fmt(4)],[5,fmt(5)],[6,fmt(6)]], cols, v => { st.cols = v; if (state.picks.length > v) state.picks.length = v; save(); renderSetup(); });
+  renderSeg($("seg-time"), [[20,fmt(20) + " ث"],[30,fmt(30) + " ث"],[45,fmt(45) + " ث"],[0,"مفتوح"]], st.time, v => { st.time = v; save(); renderSetup(); });
+  $("opt-deduct").checked = !!st.deduct;
+
+  const full = state.picks.length >= cols;
+  catsEl.replaceChildren(...BANK.map(c => {
+    const on = state.picks.includes(c.slug);
+    const fresh = freshCount(c.slug);
+    return h("button",{class:"catpick",type:"button","aria-pressed":String(on),disabled:(!on && full) ? true : null,
+      "aria-label":c.name + "، " + qWord(fresh) + " لم تُلعب بعد",onclick:() => togglePick(c.slug)},
+      h("span",{class:"nm"}, c.name), h("span",{class:"fresh","aria-hidden":"true"}, fmt(fresh)));
+  }));
+  $("cat-count").textContent = fmt(state.picks.length) + " من " + fmt(cols);
+  const gap = cols - state.picks.length;
+  $("fill-hint").textContent = gap <= 0 ? "اكتملت الفئات باختياركم." : gap === 1 ? "ستُختار فئة واحدة عشوائيًا." : (gap === 2 ? "ستُختار فئتان عشوائيًا." : "ستُختار " + fmt(gap) + " فئات عشوائيًا.");
+  const flaggedN = state.flagged.filter(id => BY_ID[id]).length;
+  $("bank-note").textContent = "في البنك " + fmt(TOTAL_Q) + " سؤالًا في " + fmt(BANK.length) + " فئات، كلها مُتحقَّق منها من مصادر موثوقة." + (flaggedN ? " " + (flaggedN === 1 ? "سؤال واحد مُبلَّغ عنه وموقوف" : qWord(flaggedN) + " مُبلَّغ عنها وموقوفة") + " حتى تتم مراجعته." : "");
+}
+function togglePick(slug){
+  const i = state.picks.indexOf(slug);
+  if (i >= 0) state.picks.splice(i,1);
+  else if (state.picks.length < state.settings.cols) state.picks.push(slug);
+  setMsg($("setup-msg"), "");
+  save(); renderSetup();
+}
+function addTeam(){
+  if (state.teams.length >= 6) return;
+  const used = new Set(state.teams.map(t => t.color));
+  const color = COLORS.find(c => !used.has(c)) || COLORS[state.teams.length % COLORS.length];
+  const id = "t" + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+  state.teams.push({id, name:ORD[state.teams.length] || "", color});
+  save(); renderSetup(); renderBoard();
+  const inp = $("team-" + id); if (inp){ inp.focus(); inp.select(); }
+}
+function removeTeam(id){
+  if (state.teams.length <= 2) return;
+  state.teams = state.teams.filter(t => t.id !== id);
+  if (state.game && state.game.turn >= state.teams.length) state.game.turn = 0;
+  save(); renderSetup(); renderBoard();
+}
+function fixNames(){ state.teams.forEach((t,i) => { if (!(t.name || "").trim()) t.name = ORD[i] || ("فريق " + fmt(i+1)); }); }
+
+/* ===== build a board from the bank ===== */
+function buildCats(){
+  const cols = state.settings.cols;
+  const recent = new Set(state.recent), flagged = new Set(state.flagged);
+  const slugs = state.picks.filter(s => BY_SLUG[s]).slice(0, cols);
+  const others = BANK.map(c => c.slug).filter(s => !slugs.includes(s));
+  // fill the open slots, preferring categories with the most unplayed questions
+  shuffle(others).sort((a,b) => freshCount(b) - freshCount(a)).forEach(s => { if (slugs.length < cols) slugs.push(s); });
+  return slugs.map(slug => {
+    const c = BY_SLUG[slug];
+    const cells = [1,2,3,4,5].map(l => {
+      const pool = c.qs.filter(q => q.l === l && !flagged.has(q.id));
+      const fresh = pool.filter(q => !recent.has(q.id));
+      const from = fresh.length ? fresh : pool;
+      return from.length ? pickOne(from).id : null;
+    });
+    return {slug, name:c.name, cells};
+  });
+}
+function startGame(){
+  fixNames();
+  const cats = buildCats();
+  const scores = {}; state.teams.forEach(t => scores[t.id] = 0);
+  const live = [];
+  cats.forEach((c,ci) => c.cells.forEach((id,ri) => { if (id && ri >= 2) live.push(ci + "-" + ri); }));
+  state.game = {gid:uuid(), cats, used:{}, dd: live.length ? pickOne(live) : null, scores, turn:0, plays:[], synced:false};
+  save(); renderBoard(); setMsg($("board-msg"), ""); show("board");
+  const g = state.game, teams = state.teams.map((t,i) => tname(t,i)), slugs = cats.map(c => c.slug);
+  queue(() => store.gameStarted(g, teams, slugs));
+  return g;
+}
+function recordPlays(entries){
+  const g = state.game; if (!g || !entries.length) return;
+  entries.forEach(e => {
+    g.plays.push(e);
+    if (!state.recent.includes(e.qid)) state.recent.push(e.qid);
+  });
+  state.recent = state.recent.slice(-300);
+  queue(() => store.played(g, entries));
+}
+
+/* ===== board ===== */
+function renderBoard(){
+  const g = state.game;
+  if (!g){ boardEl.replaceChildren(); scoresEl.replaceChildren(); turnEl.replaceChildren(); return; }
+  boardEl.style.setProperty("--cols", g.cats.length);
+  const kids = [];
+  g.cats.forEach(c => kids.push(h("div",{class:"plate cat"}, h("span",{class:"cat-name"}, c.name))));
+  VALUES.forEach((v,ri) => g.cats.forEach((c,ci) => {
+    const key = ci + "-" + ri, cell = g.used[key], hasQ = !!c.cells[ri];
+    if (cell || !hasQ){
+      const idx = cell && cell.by ? state.teams.findIndex(t => t.id === cell.by) : -1;
+      const team = idx >= 0 ? state.teams[idx] : null;
+      kids.push(h("div",{class:"cell used",title:!hasQ ? "لا يوجد سؤال متاح" : team ? "أجاب عنه " + tname(team,idx) : "لم يُجب عنه أحد"},
+        h("span",{class:"v"}, fmt(v)),
+        hasQ ? h("span",{class:"mark" + (team ? "" : " none"),style:team ? "--tc:" + team.color : null,"aria-hidden":"true"}) : null));
+    } else {
+      kids.push(h("button",{class:"plate cell",type:"button","aria-label":c.name + "، " + fmt(v) + " نقطة",onclick:() => openQ(ci,ri)},
+        h("span",{class:"v"}, fmt(v))));
+    }
+  }));
+  boardEl.replaceChildren(...kids);
+  renderScores(); renderTurn();
+}
+function renderScores(){
+  const g = state.game; if (!g) return;
+  scoresEl.replaceChildren(...state.teams.map((t,i) => h("div",{class:"score" + (g.turn === i ? " is-turn" : ""),style:"--tc:" + t.color},
+    h("button",{class:"nm",type:"button",title:"اجعلوا الدور لهذا الفريق",onclick:() => { g.turn = i; save(); renderScores(); renderTurn(); }},
+      h("span",{class:"dot","aria-hidden":"true"}), tname(t,i)),
+    h("span",{class:"pts"}, fmt(g.scores[t.id] || 0)),
+    h("span",{class:"adj"},
+      h("button",{type:"button","aria-label":"اخصم 100 من " + tname(t,i),onclick:() => adjust(t.id,-100)}, fmtS(-100)),
+      h("button",{type:"button","aria-label":"أضف 100 إلى " + tname(t,i),onclick:() => adjust(t.id,100)}, fmtS(100)))
+  )));
+}
+function renderTurn(){
+  const g = state.game; if (!g) return;
+  if (g.turn >= state.teams.length || g.turn < 0) g.turn = 0;
+  const t = state.teams[g.turn];
+  turnEl.replaceChildren(h("span",{class:"dot",style:"--tc:" + t.color,"aria-hidden":"true"}), "الدور على ", h("b",{style:"--tc:" + t.color}, tname(t,g.turn)), " ليختار سؤالًا");
+}
+function adjust(id, d){ const g = state.game; g.scores[id] = (g.scores[id] || 0) + d; save(); renderScores(); }
+
+/* ===== sound + screen ===== */
+let actx = null;
+function primeAudio(){ try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch(e){ actx = null; } }
+function beep(freq, dur, vol){
+  if (!state.settings.sound || !actx) return;
+  try {
+    const o = actx.createOscillator(), gn = actx.createGain(), t0 = actx.currentTime;
+    o.type = "sine"; o.frequency.value = freq;
+    gn.gain.setValueAtTime(vol, t0); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(gn); gn.connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch(e){}
+}
+let wl = null;
+async function wake(){ try { if ("wakeLock" in navigator && !wl){ wl = await navigator.wakeLock.request("screen"); wl.addEventListener("release", () => { wl = null; }); } } catch(e){ wl = null; } }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !scrBoard.hidden) wake(); });
+function renderSound(){ const b = $("b-sound"); b.setAttribute("aria-pressed", String(!!state.settings.sound)); b.textContent = state.settings.sound ? "الصوت: يعمل" : "الصوت: متوقف"; }
+
+/* ===== question ===== */
+let cur = null, T = null;
+function altFor(g, ci, ri){
+  const c = BY_SLUG[g.cats[ci].slug], curId = g.cats[ci].cells[ri], flagged = new Set(state.flagged);
+  const l = ri + 1;
+  return c.qs.find(q => q.l === l && q.id !== curId && !flagged.has(q.id)) || null;
+}
+function fillQuestion(){
+  const g = state.game, rec = cellQ(g, cur.ci, cur.ri);
+  $("q-text").textContent = rec.q.q;
+  $("q-a").textContent = rec.q.a;
+  $("q-note").textContent = rec.q.note || "";
+  $("q-swap").hidden = cur.swapped || !altFor(g, cur.ci, cur.ri);
+  $("flag-open").hidden = false; $("flag-form").hidden = true; $("flag-done").hidden = true; $("flag-note").value = "";
+}
+function openQ(ci, ri){
+  const g = state.game, key = ci + "-" + ri;
+  if (!g || g.used[key] || !g.cats[ci].cells[ri]) return;
+  primeAudio();
+  const dd = g.dd === key;
+  cur = {ci, ri, key, value: VALUES[ri] * (dd ? 2 : 1), revealed:false, wrong:new Set(), swapped:false, skipped:null};
+  $("q-cat").textContent = g.cats[ci].name;
+  $("q-val").textContent = fmt(cur.value) + " نقطة";
+  $("q-dd").hidden = !dd;
+  fillQuestion();
+  $("q-answer").hidden = true; $("q-pre").hidden = false; $("q-post").hidden = true;
+  qover.hidden = false;
+  startTimer();
+  if (dd) beep(988, .18, .12);
+  $("q-reveal").focus();
+}
+function swapQ(){
+  if (!cur || cur.revealed || cur.swapped) return;
+  const g = state.game, alt = altFor(g, cur.ci, cur.ri);
+  if (!alt) return;
+  cur.skipped = g.cats[cur.ci].cells[cur.ri];
+  g.cats[cur.ci].cells[cur.ri] = alt.id;
+  cur.swapped = true;
+  save(); fillQuestion(); startTimer();
+}
+function startTimer(){
+  stopTimer();
+  const tot = Number(state.settings.time) || 0;
+  $("q-timer").hidden = !tot;
+  if (!tot){ T = null; return; }
+  T = {total:tot, left:tot, endAt:performance.now() + tot * 1000, running:true, lastSec:tot, iv:0};
+  T.iv = setInterval(tick, 100);
+  drawTimer();
+}
+function tick(){
+  if (!T || !T.running) return;
+  T.left = Math.max(0, (T.endAt - performance.now()) / 1000);
+  const s = Math.ceil(T.left);
+  if (s !== T.lastSec){
+    T.lastSec = s;
+    if (s > 0 && s <= 3) beep(660, .09, .12);
+    if (s === 0){ beep(330, .55, .2); T.running = false; clearInterval(T.iv); }
+  }
+  drawTimer();
+}
+function drawTimer(){
+  if (!T) return;
+  const frac = T.total ? T.left / T.total : 0;
+  ring.style.strokeDashoffset = String(RING * (1 - frac));
+  const s = Math.ceil(T.left), out = s <= 0;
+  $("t-num").textContent = out ? "انتهى الوقت" : fmt(s);
+  $("t-state").textContent = (!T.running && !out && !(cur && cur.revealed)) ? "متوقف" : "";
+  const el = $("q-timer");
+  el.classList.toggle("warn", T.left <= 5);
+  el.classList.toggle("out", out);
+  el.setAttribute("aria-label", out ? "انتهى الوقت" : (T.running ? "بقي " + fmt(s) + " ثانية، اضغطوا لإيقاف العداد" : "العداد متوقف عند " + fmt(s) + " ثانية، اضغطوا ليكمل"));
+}
+function toggleTimer(){
+  if (!T || T.left <= 0 || (cur && cur.revealed)) return;
+  if (T.running){ T.left = Math.max(0, (T.endAt - performance.now()) / 1000); T.running = false; }
+  else { T.endAt = performance.now() + T.left * 1000; T.running = true; }
+  drawTimer();
+}
+function stopTimer(){ if (T){ clearInterval(T.iv); T.running = false; } }
+function reveal(){
+  if (!cur || cur.revealed) return;
+  cur.revealed = true;
+  if (T){ T.left = Math.max(0, (T.endAt - performance.now()) / 1000); }
+  stopTimer(); drawTimer();
+  $("q-answer").hidden = false; $("q-pre").hidden = true; $("q-post").hidden = false;
+  renderJudge();
+  const first = document.querySelector("#judge .jt-ok"); if (first) first.focus();
+}
+function renderJudge(){
+  const v = cur.value;
+  $("judge").replaceChildren(...state.teams.map((t,i) => {
+    const bad = cur.wrong.has(t.id);
+    return h("div",{class:"jt",style:"--tc:" + t.color},
+      h("button",{class:"jt-ok",type:"button","aria-label":tname(t,i) + " أجاب إجابة صحيحة، " + fmtS(v),onclick:() => award(t.id)}, tname(t,i), h("small",null,fmtS(v))),
+      state.settings.deduct ? h("button",{class:"jt-bad",type:"button",disabled:bad ? true : null,"aria-label":tname(t,i) + " أجاب إجابة خاطئة، " + fmtS(-v),onclick:() => wrong(t.id)}, bad ? fmtS(-v) : "خطأ") : null);
+  }));
+}
+function finish(outcome, teamId){
+  const g = state.game, at = new Date().toISOString();
+  const qid = g.cats[cur.ci].cells[cur.ri];
+  const ti = teamId ? state.teams.findIndex(t => t.id === teamId) : -1;
+  const entries = [];
+  if (cur.skipped) entries.push({qid:cur.skipped, outcome:"skipped", at});
+  state.teams.forEach((t,i) => { if (cur.wrong.has(t.id)) entries.push({qid, outcome:"wrong", team:tname(t,i), value:cur.value, at}); });
+  entries.push({qid, outcome, value:cur.value, team: ti >= 0 ? tname(state.teams[ti], ti) : null, at});
+  recordPlays(entries);
+}
+function award(id){
+  const g = state.game; if (!g || !cur) return;
+  g.scores[id] = (g.scores[id] || 0) + cur.value;
+  g.used[cur.key] = {by:id};
+  g.turn = Math.max(0, state.teams.findIndex(t => t.id === id));
+  finish("correct", id);
+  closeQ();
+}
+function nobody(){
+  const g = state.game; if (!g || !cur) return;
+  g.used[cur.key] = {by:null};
+  g.turn = (g.turn + 1) % state.teams.length;
+  finish("none", null);
+  closeQ();
+}
+function wrong(id){
+  const g = state.game; if (!g || !cur || cur.wrong.has(id)) return;
+  cur.wrong.add(id);
+  g.scores[id] = (g.scores[id] || 0) - cur.value;
+  save(); renderJudge(); renderScores();
+}
+function closeQ(){
+  stopTimer(); qover.hidden = true; cur = null;
+  save(); renderBoard();
+  if (isDone(state.game)) setTimeout(showEnd, 250);
+}
+function cancelQ(){
+  if (cur && cur.skipped){ const g = state.game; g.cats[cur.ci].cells[cur.ri] = cur.skipped; save(); }
+  stopTimer(); qover.hidden = true; cur = null; renderBoard();
+}
+
+/* ===== flag a question ===== */
+function submitFlag(e){
+  e.preventDefault();
+  if (!cur) return;
+  const g = state.game, qid = g.cats[cur.ci].cells[cur.ri], rec = BY_ID[qid];
+  const flag = {qid, category: rec.cat.slug, level: rec.q.l, question: rec.q.q, answer: rec.q.a,
+    note: $("flag-note").value.trim().slice(0,300), game: g.gid, gameSynced: !!g.synced, at: new Date().toISOString()};
+  if (!state.flagged.includes(qid)) state.flagged.push(qid);
+  save();
+  $("flag-form").hidden = true;
+  const done = $("flag-done");
+  done.hidden = false; done.textContent = "جارٍ إرسال البلاغ…";
+  store.flag(flag).then(() => {
+    done.textContent = "وصل البلاغ. أُوقف هذا السؤال حتى تتم مراجعته.";
+  }).catch(() => {
+    state.pendingFlags.push(flag); save();
+    done.textContent = "حُفظ البلاغ على هذا الجهاز وسيُرسل لاحقًا. أُوقف هذا السؤال حتى تتم مراجعته.";
+  });
+}
+
+/* ===== end ===== */
+function showEnd(){
+  const g = state.game; if (!g) return;
+  const done = isDone(g);
+  const ranked = state.teams.map((t,i) => ({t, i, p:g.scores[t.id] || 0})).sort((a,b) => b.p - a.p);
+  const top = ranked[0].p, winners = ranked.filter(r => r.p === top);
+  $("end-k").textContent = done ? "انتهت اللوحة" : "النتيجة حتى الآن";
+  const w = $("end-w");
+  if (winners.length === 1){
+    const x = winners[0];
+    w.replaceChildren(done ? "مبروك يا " : "", h("span",{style:"--tc:" + x.t.color}, tname(x.t,x.i)), done ? "!" : " في المقدمة");
+  } else {
+    const parts = ["تعادل بين "];
+    winners.forEach((x,k) => { if (k) parts.push(k === winners.length - 1 ? " و" : "، "); parts.push(h("span",{style:"--tc:" + x.t.color}, tname(x.t,x.i))); });
+    w.replaceChildren(...parts);
+  }
+  $("rank").replaceChildren(...ranked.map((r,k) => h("li",{style:"--tc:" + r.t.color},
+    h("span",{class:"pos"}, fmt(k + 1)), h("span",{class:"nm"}, tname(r.t,r.i)), h("span",{class:"p"}, fmt(r.p)))));
+  $("end-back").textContent = done ? "عرض اللوحة" : "أكملوا اللعب";
+  endover.hidden = false;
+  $("end-new").focus();
+  if (done){ const scores = ranked.map(r => ({team: tname(r.t,r.i), points: r.p})); queue(() => store.ended(g, scores)); }
+}
+
+/* ===== wiring ===== */
+function bind(){
+  $("add-team").addEventListener("click", addTeam);
+  $("opt-deduct").addEventListener("change", e => { state.settings.deduct = e.target.checked; save(); });
+  $("go").addEventListener("click", () => { setMsg($("setup-msg"), ""); startGame(); });
+  $("resume-go").addEventListener("click", () => { renderBoard(); show("board"); });
+
+  $("b-setup").addEventListener("click", () => { renderSetup(); show("setup"); });
+  $("b-end").addEventListener("click", showEnd);
+  $("b-sound").addEventListener("click", () => { state.settings.sound = !state.settings.sound; save(); renderSound(); if (state.settings.sound){ primeAudio(); beep(880,.1,.1); } });
+  const fs = $("b-full");
+  fs.hidden = !(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+  fs.addEventListener("click", async () => {
+    try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
+    catch(e){ fs.hidden = true; }
+  });
+  document.addEventListener("fullscreenchange", () => { fs.textContent = document.fullscreenElement ? "الخروج من ملء الشاشة" : "ملء الشاشة"; });
+
+  $("q-reveal").addEventListener("click", reveal);
+  $("q-swap").addEventListener("click", swapQ);
+  $("q-cancel").addEventListener("click", cancelQ);
+  $("q-none").addEventListener("click", nobody);
+  $("q-timer").addEventListener("click", toggleTimer);
+  $("flag-open").addEventListener("click", () => { $("flag-open").hidden = true; $("flag-form").hidden = false; $("flag-note").focus(); });
+  $("flag-cancel").addEventListener("click", () => { $("flag-form").hidden = true; $("flag-open").hidden = false; });
+  $("flag-form").addEventListener("submit", submitFlag);
+
+  $("end-new").addEventListener("click", () => { state.game = null; save(); endover.hidden = true; renderSetup(); renderBoard(); show("setup"); });
+  $("end-back").addEventListener("click", () => { endover.hidden = true; });
+
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (!qover.hidden && cur && !cur.revealed) cancelQ();
+    else if (!endover.hidden) endover.hidden = true;
+  });
+}
+
+function boot(data){
+  state = normalize((data && data.state) || load());
+  bind();
+  renderSetup(); renderBoard(); renderSound();
+  show("setup");
+  syncFlagsIn();
+}
+try { const hot = window.claude && window.claude.hot; if (hot && typeof hot.snapshot === "function") hot.snapshot(() => ({state})); } catch(e){}
+const hot = window.claude && window.claude.hot;
+if (hot && typeof hot.ready === "function") hot.ready(boot); else boot((hot && hot.data) || {});
+})();
+</script>
+</body></html>
