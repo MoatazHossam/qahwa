@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>اختبار الاتصال</title>
+<style>
+:root{--bg:#f6f4f1;--panel:#fff;--ink:#1d1a17;--muted:#6b645c;--ok:#15803d;--bad:#b91c1c;--wait:#a16207;--line:#e4dfd8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15130f;--panel:#1f1c18;--ink:#f3eee7;--muted:#a59d93;--ok:#4ade80;--bad:#f87171;--wait:#facc15;--line:#35302a}}
+:root[data-theme="dark"]{--bg:#15130f;--panel:#1f1c18;--ink:#f3eee7;--muted:#a59d93;--ok:#4ade80;--bad:#f87171;--wait:#facc15;--line:#35302a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding:24px 16px}
+main{max-width:520px;margin:0 auto}
+h1{font-size:1.5rem;margin:0 0 4px}
+p.sub{color:var(--muted);margin:0 0 20px}
+ul{list-style:none;padding:0;margin:0;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+li{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-top:1px solid var(--line)}
+li:first-child{border-top:0}
+.ico{font-size:1.3rem;line-height:1.4;min-width:1.6em;text-align:center}
+.t{font-weight:600}
+.d{color:var(--muted);font-size:.9rem}
+.ok .ico{color:var(--ok)} .bad .ico{color:var(--bad)} .wait .ico{color:var(--wait)}
+#verdict{margin-top:20px;padding:14px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-weight:600}
+button{margin-top:16px;font:inherit;padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+</style>
+</head>
+<body>
+<main>
+  <h1>اختبار الاتصال</h1>
+  <p class="sub">افتح الصفحة دي من مصر على نت الموبايل العادي من غير VPN، وابعت سكرين شوت للنتيجة.</p>
+  <ul>
+    <li class="ok" id="r-host"><span class="ico">✓</span><div><div class="t">موقع اللعبة (GitHub)</div><div class="d">الصفحة اتفتحت، يبقى الموقع شغال.</div></div></li>
+    <li class="wait" id="r-db"><span class="ico">…</span><div><div class="t">قاعدة البيانات (Supabase)</div><div class="d">بنجرب…</div></div></li>
+    <li class="wait" id="r-rt"><span class="ico">…</span><div><div class="t">الاتصال اللحظي (للعب من الموبايلات)</div><div class="d">بنجرب…</div></div></li>
+  </ul>
+  <div id="verdict">بنجرب…</div>
+  <button type="button" id="again">جرّب تاني</button>
+</main>
+<script>
+(function(){
+"use strict";
+const HOST = "bsfzfarfrnxgpckmprut.supabase.co";
+const KEY = "sb_publishable_6LjuIzeMjepexKqCHCy9vQ_IcLWX4DX";
+const res = {};
+function set(id, state, detail){
+  const li = document.getElementById(id);
+  li.className = state;
+  li.querySelector(".ico").textContent = state === "ok" ? "✓" : state === "bad" ? "✗" : "…";
+  li.querySelector(".d").textContent = detail;
+  res[id] = state;
+  verdict();
+}
+function verdict(){
+  const v = document.getElementById("verdict");
+  if (res["r-db"] === "wait" || res["r-rt"] === "wait") { v.textContent = "بنجرب…"; return; }
+  if (res["r-db"] === "ok" && res["r-rt"] === "ok") v.textContent = "كله تمام ✓ اللعب من الموبايلات هيشتغل من الشبكة دي.";
+  else if (res["r-db"] === "bad" && res["r-rt"] === "bad") v.textContent = "Supabase مش واصل من الشبكة دي. اللعبة نفسها هتشتغل، بس اللعب من الموبايلات محتاج حل تاني.";
+  else v.textContent = "فيه جزء شغال وجزء لأ. ابعت سكرين شوت.";
+}
+async function testDb(){
+  set("r-db", "wait", "بنجرب…");
+  const t0 = performance.now();
+  try {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 12000);
+    const r = await fetch("https://" + HOST + "/rest/v1/rpc/inactive_question_ids", {method:"POST", headers:{"apikey":KEY, "Content-Type":"application/json"}, body:"{}", signal:ctl.signal});
+    clearTimeout(tm);
+    const ms = Math.round(performance.now() - t0);
+    if (r.ok) set("r-db", "ok", "واصل (" + ms + " ms).");
+    else set("r-db", "bad", "رد بخطأ " + r.status + ".");
+  } catch(e) { set("r-db", "bad", "مش واصل: " + (e.name === "AbortError" ? "انتهى الوقت" : e.message)); }
+}
+function testRt(){
+  set("r-rt", "wait", "بنجرب…");
+  const t0 = performance.now();
+  let ws, done = false;
+  const topic = "realtime:conn-check-" + Math.random().toString(36).slice(2, 8);
+  const finish = (state, msg) => { if (done) return; done = true; clearTimeout(tm); try { ws.close(); } catch(e){} set("r-rt", state, msg); };
+  const tm = setTimeout(() => finish("bad", "مش واصل: انتهى الوقت."), 12000);
+  try { ws = new WebSocket("wss://" + HOST + "/realtime/v1/websocket?apikey=" + encodeURIComponent(KEY) + "&vsn=1.0.0"); }
+  catch(e) { finish("bad", "مش واصل: " + e.message); return; }
+  ws.onopen = () => ws.send(JSON.stringify({topic, event:"phx_join", payload:{config:{broadcast:{self:true, ack:false}, presence:{key:""}, private:false}}, ref:"1"}));
+  ws.onmessage = ev => {
+    let m; try { m = JSON.parse(ev.data); } catch(e) { return; }
+    if (m.event === "phx_reply" && m.ref === "1") {
+      if (m.payload && m.payload.status === "ok") ws.send(JSON.stringify({topic, event:"broadcast", payload:{type:"broadcast", event:"ping", payload:{at:Date.now()}}, ref:"2"}));
+      else finish("bad", "اتصل بس الدخول اترفض.");
+    } else if (m.event === "broadcast" && m.payload && m.payload.event === "ping") {
+      finish("ok", "واصل ورسالة راحت ورجعت (" + Math.round(performance.now() - t0) + " ms).");
+    }
+  };
+  ws.onerror = () => finish("bad", "مش واصل.");
+  ws.onclose = () => finish("bad", "الاتصال اتقفل.");
+}
+function run(){ testDb(); testRt(); }
+document.getElementById("again").addEventListener("click", run);
+run();
+})();
+</script>
+</body>
+</html>
