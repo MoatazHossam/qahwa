@@ -213,7 +213,7 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.18)}
 
 /* scores: chalk on a slate in a wooden frame, with tally marks */
 .scores{gap:0;background:var(--slate);border:9px solid var(--wood);border-radius:6px;box-shadow:0 8px 0 rgba(0,0,0,.25)}
-.score{background:transparent;border:0;border-radius:0;padding:12px 24px;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"nm nm . adj" "pts tally . adj" "hl hl hl adj";align-items:center;column-gap:18px}
+.score{background:transparent;border:0;border-radius:0;padding:12px 24px;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"nm nm nm adj" "pts tally . adj" "hl hl hl adj";align-items:center;column-gap:18px}
 .score + .score{border-inline-start:2px dashed rgba(237,237,230,.22)}
 .score.is-turn{box-shadow:none;border-color:rgba(237,237,230,.22)}
 .score.is-turn .nm{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:7px}
@@ -290,6 +290,12 @@ button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;op
 .qhelp{background:var(--brass);color:var(--brass-ink);border-radius:6px;padding:6px 18px 7px;box-shadow:0 3px 0 rgba(0,0,0,.25)}
 .score .hl{grid-area:hl}
 .score .hl span{border:1px dashed rgba(237,237,230,.35);border-radius:4px;color:var(--chalk)}
+
+/* phones: the teams on the slate one under the other, divided by a chalk line */
+@media (max-width:560px){
+  .scores{grid-template-columns:minmax(0,1fr)}
+  .score + .score{border-inline-start:0;border-top:2px dashed rgba(237,237,230,.22)}
+}
 
 </style>
 </head>
