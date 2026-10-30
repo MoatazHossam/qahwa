@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lalezar&family=Readex+Pro:wght@400;500;600;700&display=swap">
-
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700&family=Aref+Ruqaa:wght@400;700&display=swap">
 <style>
 /* Phone page for the speed race. Same colour tokens as the host screen, so a brand theme restyles both. */
 :root{
@@ -107,6 +107,9 @@ input:focus{outline:none;border-color:var(--brass)}
 .buzzbtn:active{transform:translateY(6px);box-shadow:0 2px 0 rgba(0,0,0,.32),inset 0 0 0 8px rgba(255,255,255,.22)}
 .buzzbtn:disabled{opacity:.6;transform:translateY(6px);box-shadow:0 2px 0 rgba(0,0,0,.32);cursor:default}
 .rank li .dot{width:12px;height:12px;border-radius:50%;background:var(--tc);flex:none}
+.tally{display:none}
+.tally svg{display:block;height:24px;width:auto}
+.big-ico svg{display:block;width:56px;height:56px;margin:0 auto}
 .turnline{margin:0;text-align:center;font-size:1.15rem;font-weight:600;padding:10px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
 .turnline.mine{background:var(--brass);color:var(--brass-ink);border-color:var(--brass)}
 .pboard{display:flex;flex-direction:column;gap:7px}
@@ -126,6 +129,142 @@ button.pv.sent{background:var(--cream);color:var(--night);opacity:1}
 @media (min-width:480px){ .opts{grid-template-columns:1fr 1fr} .opt{min-height:88px} }
 @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
 /* brand theme */
+/* قهوة الطيبين: the ahwa wall.
+   A painted green wall with a darker dado, blue enamel street signs for the board, a chalk slate in a wooden
+   frame for the scores, and an amber tag on a string for whose turn it is. Shared by the screen and the phones. */
+:root{
+  --wall:#1E4D40; --wall-low:#173D33; --rail:#E9DDBF; --ghost:#2A5E50;
+  --slate:#2A2F2B; --wood:#6B4527; --chalk:#EDEDE6;
+  --night:#173D33; --panel:#24584A;
+  --line:rgba(241,231,207,.16); --line-strong:rgba(241,231,207,.42);
+  --glow:transparent;
+  --enamel:#1F3F8F; --enamel-hi:#1F3F8F; --enamel-edge:#F4F1E8; --rivet:#C9C3B4;
+  --cream:#F1E7CF; --muted:#CFC4A8;
+  --brass:#E2A33A; --brass-deep:#9C6A1C; --brass-ink:#2A1606;
+  --team-ink:#1B1A14;
+  --scrim:rgba(10,28,23,.92);
+  --shadow:rgba(0,0,0,.3);
+  --ring-track:rgba(244,241,232,.22);
+  --f-body:"Alexandria","Readex Pro",system-ui,Tahoma,sans-serif;
+}
+body{background:var(--wall)}
+.logo{color:var(--cream)}
+.tag{font-family:var(--f-body);font-size:.95rem;color:var(--muted)}
+
+/* setup */
+.modes{background:transparent;border:0;padding:0;gap:6px}
+.mode{border-radius:5px;color:var(--muted)}
+.mode.is-on{background:var(--enamel);color:var(--enamel-edge);box-shadow:inset 0 0 0 3px var(--enamel),inset 0 0 0 4.5px var(--enamel-edge)}
+.card{background:transparent;border:0;padding:4px 0}
+#card-teams{background:var(--slate);border:9px solid var(--wood);border-radius:6px;padding:20px 24px 24px;box-shadow:0 8px 0 rgba(0,0,0,.25)}
+#card-teams .team-row input{background:transparent;border:0;border-bottom:2px dashed rgba(237,237,230,.32);border-radius:0;font-size:1.25rem;font-weight:600;color:var(--chalk);padding:8px 2px}
+#card-teams .team-row input:focus{border-bottom-color:var(--tc)}
+#card-teams .swatch{width:18px;height:18px}
+#card-teams .seg{background:transparent;border-color:rgba(237,237,230,.28)}
+#card-teams .ghost,#card-teams .x{border-color:rgba(237,237,230,.3)}
+.catpick{border:2px dashed rgba(241,231,207,.3);border-radius:6px}
+.catpick:hover{border-color:rgba(241,231,207,.6)}
+.catpick[aria-pressed="true"]{border:2px solid transparent;background:var(--enamel);color:var(--enamel-edge);box-shadow:inset 0 0 0 3px var(--enamel),inset 0 0 0 5px var(--enamel-edge),0 3px 0 rgba(0,0,0,.25)}
+.catpick .nm{font-weight:700}
+.primary,.resume{border-radius:6px}
+.resume{box-shadow:inset 0 0 0 3px var(--enamel),inset 0 0 0 5px var(--enamel-edge)}
+.fest{border-inline-start-color:var(--brass)}
+
+/* board: enamel signs */
+.plate{background:var(--enamel);box-shadow:inset 0 0 0 4px var(--enamel),inset 0 0 0 6px var(--enamel-edge),0 4px 0 rgba(0,0,0,.28);border-radius:6px}
+.cat{background:
+  radial-gradient(circle at 12px 12px,var(--rivet) 0 2.5px,transparent 3px),
+  radial-gradient(circle at calc(100% - 12px) 12px,var(--rivet) 0 2.5px,transparent 3px),
+  radial-gradient(circle at 12px calc(100% - 12px),var(--rivet) 0 2.5px,transparent 3px),
+  radial-gradient(circle at calc(100% - 12px) calc(100% - 12px),var(--rivet) 0 2.5px,transparent 3px),
+  var(--enamel)}
+.cat-name{font-weight:700;color:var(--enamel-edge);font-size:clamp(1.25rem,2.1vw,1.9rem)}
+.cell{color:var(--enamel-edge)}
+button.cell{padding-top:.22em}
+button.cell:hover{transform:translateY(-2px);filter:brightness(1.18)}
+/* a question that was played: the sign is gone, leaving the cleaner patch of wall, its screw holes and a chalk mark */
+.cell.used{border-radius:6px;box-shadow:none;background:
+  radial-gradient(circle at 10px 10px,rgba(0,0,0,.45) 0 2.5px,transparent 3px),
+  radial-gradient(circle at calc(100% - 10px) 10px,rgba(0,0,0,.45) 0 2.5px,transparent 3px),
+  radial-gradient(circle at 10px calc(100% - 10px),rgba(0,0,0,.45) 0 2.5px,transparent 3px),
+  radial-gradient(circle at calc(100% - 10px) calc(100% - 10px),rgba(0,0,0,.45) 0 2.5px,transparent 3px),
+  var(--ghost)}
+.cell.used .v{display:none}
+.cell .mark{position:static;width:34px;height:34px;box-sizing:border-box;border-radius:50%;background:transparent;border:3px solid var(--tc);opacity:.92}
+.cell .mark.none{border:0;box-shadow:none;border-radius:0;width:26px;height:26px;background:
+  linear-gradient(45deg,transparent 43%,rgba(237,237,230,.7) 43% 57%,transparent 57%),
+  linear-gradient(-45deg,transparent 43%,rgba(237,237,230,.7) 43% 57%,transparent 57%)}
+
+/* whose turn: an amber tag hung on a string */
+.turn{position:relative;margin-top:18px;background:var(--brass);color:var(--brass-ink);border-radius:6px;padding:9px 20px 10px;transform:rotate(-1.5deg);box-shadow:0 5px 0 rgba(0,0,0,.25)}
+.turn::before{content:"";position:absolute;bottom:100%;left:50%;width:110px;height:18px;transform:translateX(-50%);background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 18'%3E%3Cpath d='M12 18 L55 2 L98 18' fill='none' stroke='%23CFC4A8' stroke-width='1.5'/%3E%3Ccircle cx='55' cy='3' r='3' fill='%238C7A55'/%3E%3C/svg%3E") center/contain no-repeat}
+.turn b{color:var(--brass-ink)}
+.turn .dot{box-shadow:0 0 0 2px var(--brass-ink)}
+.tools .ghost{border:0;background:none;color:var(--muted);padding:8px 10px}
+.tools .ghost:hover{color:var(--cream)}
+
+/* scores: chalk on a slate in a wooden frame, with tally marks */
+.scores{gap:0;background:var(--slate);border:9px solid var(--wood);border-radius:6px;box-shadow:0 8px 0 rgba(0,0,0,.25)}
+.score{background:transparent;border:0;border-radius:0;padding:12px 24px;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"nm nm . adj" "pts tally . adj";align-items:center;column-gap:18px}
+.score + .score{border-inline-start:2px dashed rgba(237,237,230,.22)}
+.score.is-turn{box-shadow:none;border-color:rgba(237,237,230,.22)}
+.score.is-turn .nm{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:7px}
+.score .nm{grid-area:nm;font-size:1.1rem}
+.score .pts{grid-area:pts;color:var(--chalk);font-size:clamp(2.2rem,3.6vw,3.2rem);line-height:1}
+.score .tally{grid-area:tally;display:block;color:var(--tc)}
+.score .adj{grid-area:adj;flex-direction:column}
+.adj button{border:2px solid rgba(237,237,230,.28);border-radius:999px;color:var(--chalk)}
+
+/* the question: a big enamel sign */
+.qcard{background:
+  radial-gradient(circle at 22px 22px,var(--rivet) 0 4px,transparent 4.5px),
+  radial-gradient(circle at calc(100% - 22px) 22px,var(--rivet) 0 4px,transparent 4.5px),
+  radial-gradient(circle at 22px calc(100% - 22px),var(--rivet) 0 4px,transparent 4.5px),
+  radial-gradient(circle at calc(100% - 22px) calc(100% - 22px),var(--rivet) 0 4px,transparent 4.5px),
+  var(--enamel);
+  border-radius:10px;box-shadow:inset 0 0 0 10px var(--enamel),inset 0 0 0 13px var(--enamel-edge),0 24px 70px var(--shadow)}
+.qtext,.qc{color:var(--enamel-edge)}
+
+/* end of game: the slate */
+.endcard{background:var(--slate);border:9px solid var(--wood);border-radius:6px}
+.endcard .rank li{background:transparent;border-bottom:2px dashed rgba(237,237,230,.16);border-radius:0}
+.endcard .rank li:last-child{border-bottom:0}
+.endcard .rank .p,.end-w{color:var(--chalk)}
+
+/* «أشهر إجابة»: a big sign with small cream signs behind it */
+.fstage{box-shadow:inset 0 0 0 10px var(--enamel),inset 0 0 0 13px var(--enamel-edge),0 18px 50px var(--shadow)}
+.ftile{background:#183474;box-shadow:inset 0 0 0 2px rgba(244,241,232,.5);border-radius:5px}
+.ftile .rk{color:var(--enamel-edge);opacity:.85}
+.ftile.open{background:var(--enamel-edge);box-shadow:0 3px 0 rgba(0,0,0,.25)}
+.ftile.open .tx{color:#1B2C5C}
+.ftile .pt{background:var(--brass);color:var(--brass-ink)}
+.ftile.late{background:transparent;box-shadow:inset 0 0 0 1px rgba(244,241,232,.35)}
+.ftile.late .tx,.ftile.late .pt{color:#C9D2EA;background:transparent}
+.fform input{background:#183474;border-color:var(--enamel-edge)}
+.fx i{border-color:rgba(244,241,232,.5)}
+.fbank,.fctl .lbl,.fmsg{color:var(--enamel-edge)}
+
+/* phones */
+.turnline{background:transparent;border:0;color:var(--cream)}
+.turnline.mine{background:var(--brass);color:var(--brass-ink);border-radius:6px;transform:rotate(-1.5deg);box-shadow:0 5px 0 rgba(0,0,0,.25)}
+.pc{font-family:"Aref Ruqaa","Lalezar",serif;font-weight:700;font-size:1.15rem}
+.pv{border-radius:4px}
+button.pv,button.pv:not(:disabled){background:var(--enamel);color:var(--enamel-edge);border:0;box-shadow:inset 0 0 0 3px var(--enamel),inset 0 0 0 4.5px var(--enamel-edge),0 3px 0 rgba(0,0,0,.28);padding-top:4px}
+button.pv:disabled{opacity:.5}
+button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;opacity:1}
+.pv.used{background:var(--ghost);border:0;color:transparent;text-decoration:none;opacity:1}
+.pv.used:not([style]){background:
+  linear-gradient(45deg,transparent 43%,rgba(237,237,230,.6) 43% 54%,transparent 54%) center/18px 18px no-repeat,
+  linear-gradient(-45deg,transparent 43%,rgba(237,237,230,.6) 43% 54%,transparent 54%) center/18px 18px no-repeat,
+  var(--ghost)}
+.pv.used[style]::after{inset-block-start:50%;inset-inline-start:50%;width:20px;height:20px;box-sizing:border-box;transform:translate(50%,-50%);background:transparent;border:2.5px solid var(--tc)}
+#g-scores,#w-scores{background:var(--slate);border:7px solid var(--wood);border-radius:6px;padding:4px 12px;box-shadow:0 6px 0 rgba(0,0,0,.25)}
+#g-scores li,#w-scores li{background:transparent;border:0;border-bottom:2px dashed rgba(237,237,230,.16);border-radius:0;padding:8px 2px}
+#g-scores li:last-child,#w-scores li:last-child{border-bottom:0}
+#g-scores li.mine .nm,#w-scores li.mine .nm{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:6px}
+#g-scores .p,#w-scores .p{color:var(--chalk);font-size:1.6rem}
+#g-scores .tally,#w-scores .tally{display:block;color:var(--tc)}
+#g-scores .nm,#w-scores .nm{color:var(--tc)}
 
 </style>
 </head>
@@ -202,7 +341,7 @@ button.pv.sent{background:var(--cream);color:var(--night);opacity:1}
     <!-- answer sent -->
     <section class="view" id="v-sent" hidden>
       <div class="card center">
-        <p class="big-ico" aria-hidden="true">⏳</p>
+        <p class="big-ico" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6h24M12 42h24M15 6c0 10 18 12 18 18s-18 8-18 18M33 6c0 10-18 12-18 18s18 8 18 18"/></svg></p>
         <h2>وصلت إجابتك</h2>
         <span class="chip" id="s-chip"></span>
         <p class="sub" id="s-sub">انتظر حتى يجيب الباقون أو ينتهي الوقت.</p>
@@ -243,7 +382,7 @@ button.pv.sent{background:var(--cream);color:var(--night);opacity:1}
 </div>
 
 <script>
-const BRAND = {"storageKey": "qahwa-tayebeen:v1", "brandId": "5d3277bb-001d-4bbe-b43b-255d4076b749", "bankLabel": "qahwa-v3-233", "feudLabel": "feud-1"};
+const BRAND = {"storageKey": "qahwa-tayebeen:v1", "brandId": "5d3277bb-001d-4bbe-b43b-255d4076b749", "bankLabel": "qahwa-v3-233", "teamColors": ["#F2D06B", "#8FD3F4", "#F4A7B9", "#B8E08A", "#F6B26B", "#C9B6F2"], "feudLabel": "feud-1"};
 </script>
 <script>
 /* Live room over Supabase Realtime "broadcast" (Phoenix websocket protocol, vsn 1.0.0).
@@ -367,6 +506,24 @@ function h(tag, props, ...kids){
   for (const c of kids.flat()){ if (c == null || c === false) continue; el.append(c.nodeType ? c : document.createTextNode(String(c))); }
   return el;
 }
+/* simple line icons instead of emoji */
+const ICO = {
+  bell:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 34V22a12 12 0 0 1 24 0v12l4 4H8z"/><path d="M20 42a4 4 0 0 0 8 0"/></svg>',
+  wait:'<svg viewBox="0 0 48 48" fill="currentColor"><circle cx="12" cy="24" r="3.5"/><circle cx="24" cy="24" r="3.5"/><circle cx="36" cy="24" r="3.5"/></svg>',
+  ok:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 25l9 9 19-20"/></svg>',
+  out:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><path d="M14 14l20 20M34 14L14 34"/></svg>'
+};
+function setIco(el, v){ if (ICO[v]) el.innerHTML = ICO[v]; else el.textContent = v; }
+function tallySvg(n){
+  n = Math.max(0, Math.min(40, n | 0)); if (!n) return "";
+  const groups = Math.ceil(n / 5), w = groups * 40 - 6, parts = [];
+  for (let g = 0; g < groups; g++){
+    const x0 = g * 40, k = Math.min(5, n - g * 5);
+    for (let i = 0; i < Math.min(4, k); i++){ const x = x0 + 4 + i * 8; parts.push("M" + x + " " + (4 + (i % 2)) + " L" + (x - 1 + (i % 2) * 2) + " 32"); }
+    if (k === 5) parts.push("M" + (x0 - 1) + " 26 L" + (x0 + 33) + " 9");
+  }
+  return '<svg width="' + w + '" height="36" viewBox="0 0 ' + w + ' 36" aria-hidden="true"><path d="' + parts.join(" ") + '" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg>';
+}
 function view(id){ VIEWS.forEach(v => { $(v).hidden = v !== id; }); }
 function cleanName(s){ return String(s || "").replace(/\s+/g, " ").trim().slice(0, 16); }
 function cleanCode(s){ return String(s || "").replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\D/g, "").slice(0, 4); }
@@ -406,12 +563,12 @@ function join(code, name){
   if (location.hash.slice(1) !== code){ try { history.replaceState(null, "", "#" + code); } catch(e){} }
   last = null; hs = null; seq = -1; everOpen = false; buzzedKey = ""; pickSent = null;
   $("me").hidden = false; $("me").replaceChildren("أنت: ", h("b", null, name));
-  waitView("…", "جارٍ الدخول إلى الغرفة " + fmt(Number(code)) + "…", "");
+  waitView("wait", "جارٍ الدخول إلى الغرفة " + fmt(Number(code)) + "…", "");
   room = liveRoom({topic: topicFor(code), onMessage, onStatus});
   hello();
   pulse = setInterval(hello, 4000);
   tick = setInterval(onTick, 150);
-  lost = setTimeout(() => { if (!last) waitView("…", "لم نجد الغرفة بعد", "تأكد أن رقم الغرفة صحيح وأن شاشة اللعبة مفتوحة. ما زلنا نحاول…", true); }, 9000);
+  lost = setTimeout(() => { if (!last) waitView("wait", "لم نجد الغرفة بعد", "تأكد أن رقم الغرفة صحيح وأن شاشة اللعبة مفتوحة. ما زلنا نحاول…", true); }, 9000);
   keepAwake();
 }
 function stop(){
@@ -443,7 +600,7 @@ function myRank(){
 }
 function waitView(ico, title, sub, canLeave){
   view("v-wait");
-  $("w-ico").textContent = ico; $("w-title").textContent = title; $("w-sub").textContent = sub || "";
+  setIco($("w-ico"), ico); $("w-title").textContent = title; $("w-sub").textContent = sub || "";
   $("w-leave").hidden = !canLeave; $("w-scores").hidden = true;
 }
 function render(){
@@ -455,7 +612,7 @@ function render(){
   if (p.phase === "lobby"){
     const ps = players(), inRoom = ps.some(x => x.id === me.pid);
     const others = ps.length - (inRoom ? 1 : 0);
-    waitView(inRoom ? "✓" : "…", inRoom ? "أنت في الغرفة" : "جارٍ تسجيل اسمك…",
+    waitView(inRoom ? "ok" : "wait", inRoom ? "أنت في الغرفة" : "جارٍ تسجيل اسمك…",
       (others > 0 ? "معك في الغرفة " + (others === 1 ? "لاعب واحد" : others === 2 ? "لاعبان" : fmt(others) + " لاعبين") + ". " : "") + "انتظر حتى يبدأ السباق على الشاشة.");
     return;
   }
@@ -526,12 +683,12 @@ function resultView(q){
   else { $("r-ico").textContent = "–"; $("r-lead").textContent = "لم تُجب عن هذا السؤال"; $("r-pts").textContent = ""; }
   $("r-ans").textContent = (q.opts && q.correct != null) ? q.opts[q.correct] : "";
   const mr = myRank();
-  $("r-rank").textContent = mr ? "ترتيبك " + fmt(mr.pos) + " من " + fmt(mr.of) + " · مجموعك " + fmt(mr.score) + " نقطة" : "";
+  $("r-rank").textContent = mr ? "ترتيبك " + fmt(mr.pos) + " من " + fmt(mr.of) + "، مجموعك " + fmt(mr.score) + " نقطة" : "";
 }
 function finalView(){
   view("v-final"); $("f-sub").textContent = "انتهى السباق";
   const mr = myRank(), ps = players();
-  $("f-title").textContent = mr ? (mr.pos === 1 ? "أنت الفائز! 🏆" : "المركز " + fmt(mr.pos) + " من " + fmt(mr.of)) : "النتيجة النهائية";
+  $("f-title").textContent = mr ? (mr.pos === 1 ? "أنت الفائز!" : "المركز " + fmt(mr.pos) + " من " + fmt(mr.of)) : "النتيجة النهائية";
   $("f-pts").textContent = mr ? fmt(mr.score) + " نقطة" : "";
   $("f-rank").replaceChildren(...ps.slice(0, 5).map((x,k) => h("li",{class:x.id === me.pid ? "mine" : null},
     h("span",{class:"pos"}, fmt(k + 1)), h("span",{class:"nm"}, x.name), h("span",{class:"p"}, fmt(x.score || 0)))));
@@ -554,30 +711,31 @@ function scoresList(tid, at){
   const teams = bTeams().slice().sort((a,b) => (b.score || 0) - (a.score || 0));
   const el = $(at || "w-scores"); el.hidden = !teams.length;
   el.replaceChildren(...teams.map(t => h("li",{class:t.id === tid ? "mine" : null,style:"--tc:" + t.color},
-    h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), h("span",{class:"p"}, fmt(t.score || 0)))));
+    h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), tallyOf(t.won || 0), h("span",{class:"p"}, fmt(t.score || 0)))));
 }
+function tallyOf(n){ const el = h("span",{class:"tally",role:"img","aria-label":fmt(n) + " صح"}); el.innerHTML = tallySvg(n); return el; }
 function boardRender(p){
   $("tag").textContent = "لوحة الفئات";
   const tid = myTeam();
   if (!tid){ teamView(); return; }
   $("me").hidden = false;
-  $("me").replaceChildren("أنت: ", h("b", null, me.name), " · ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
+  $("me").replaceChildren(h("b", null, me.name), "، ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
   const q = p.q || null;
-  if (q && p.phase === "reveal"){ waitView("✓", "الإجابة: " + (q.answer || ""), "استنوا الحكم على الشاشة."); scoresList(tid); return; }
+  if (q && p.phase === "reveal"){ waitView("ok", "الإجابة: " + (q.answer || ""), "استنوا الحكم على الشاشة."); scoresList(tid); return; }
   if (q && p.phase === "locked" && q.buzz){
     const b = q.buzz;
-    if (b.pid === me.pid) waitView("🔔", "إنت أول واحد ضغط!", "جاوب بصوت عالي.");
-    else if (b.team === tid) waitView("🔔", b.name + " من فريقك ضغط الأول", "ساعدوه في الإجابة.");
-    else waitView("✋", b.name + " من " + teamName(b.team) + " ضغط الأول", "لو إجابته غلط، الأزرار هتفتح تاني.");
+    if (b.pid === me.pid) waitView("bell", "إنت أول واحد ضغط!", "جاوب بصوت عالي.");
+    else if (b.team === tid) waitView("bell", b.name + " من فريقك ضغط الأول", "ساعدوه في الإجابة.");
+    else waitView("bell", b.name + " من " + teamName(b.team) + " ضغط الأول", "لو إجابته غلط، الأزرار هتفتح تاني.");
     return;
   }
   if (q && (p.phase === "buzz" || p.phase === "open")){
-    if (p.phase === "buzz" && Array.isArray(q.out) && q.out.includes(tid)){ waitView("✗", "فريقك خرج من السؤال ده", "استنوا الفرق التانية."); return; }
+    if (p.phase === "buzz" && Array.isArray(q.out) && q.out.includes(tid)){ waitView("out", "فريقك خرج من السؤال ده", "استنوا الفرق التانية."); return; }
     buzzView(q, tid, p.phase === "buzz"); return;
   }
   if (p.phase === "final"){ boardFinal(tid); return; }
   if (p.phase === "idle" && p.board){ boardView(p, tid); return; }
-  waitView("✓", "إنت في " + teamName(tid), "استنوا لحد ما اللعب يبدأ على الشاشة.");
+  waitView("ok", "إنت في " + teamName(tid), "استنوا لحد ما اللعب يبدأ على الشاشة.");
   scoresList(tid);
 }
 function boardView(p, tid){
@@ -642,7 +800,7 @@ function boardFinal(tid){
   view("v-final"); $("f-sub").textContent = "انتهت اللوحة";
   const ranked = bTeams().slice().sort((a,b) => (b.score || 0) - (a.score || 0));
   const top = ranked.length ? ranked[0].score || 0 : 0, winners = ranked.filter(t => (t.score || 0) === top);
-  $("f-title").textContent = winners.length !== 1 ? "تعادل" : winners[0].id === tid ? "فريقك كسب! 🏆" : "مبروك يا " + winners[0].name;
+  $("f-title").textContent = winners.length !== 1 ? "تعادل" : winners[0].id === tid ? "فريقك كسب!" : "مبروك يا " + winners[0].name;
   $("f-pts").textContent = "";
   $("f-rank").replaceChildren(...ranked.map((t,k) => h("li",{class:t.id === tid ? "mine" : null,style:"--tc:" + t.color},
     h("span",{class:"pos"}, fmt(k + 1)), h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), h("span",{class:"p"}, fmt(t.score || 0)))));
