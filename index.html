@@ -255,6 +255,12 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
 .players:empty::before{content:attr(data-empty);color:var(--muted);font-weight:400}
 .conn-note{margin:0;font-size:.92rem;color:var(--muted)}
 .conn-note.is-err{color:var(--bad)}
+.players .tm{font-weight:400;color:var(--muted);font-size:.85rem}
+.qbuzz{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+.qbuzz p{margin:0;color:inherit;opacity:.85;font-size:1rem}
+.qbuzz p:empty{display:none}
+.qbuzz.hit p{opacity:1;font-family:var(--f-display);font-size:clamp(1.4rem,3vw,2.2rem);line-height:1.3;padding:10px 24px 8px;border-radius:14px;background:var(--tc);color:var(--team-ink)}
+.jt.buzzed{box-shadow:0 0 0 3px var(--cream),0 0 0 6px var(--tc)}
 .rcard{width:min(1180px,100%);margin:auto;display:flex;flex-direction:column;gap:clamp(12px,2vw,20px);align-items:center;text-align:center}
 .rtop{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:center;align-items:center;color:var(--muted)}
 .rtop b{color:var(--cream);font-variant-numeric:tabular-nums}
@@ -317,6 +323,7 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
         <div class="field"><span class="lbl" id="l-cols">عدد الفئات</span><div class="seg" id="seg-cols" role="group" aria-labelledby="l-cols"></div></div>
         <div class="field"><span class="lbl" id="l-time">وقت الإجابة</span><div class="seg" id="seg-time" role="group" aria-labelledby="l-time"></div></div>
         <label class="switch" for="opt-deduct"><input type="checkbox" id="opt-deduct"><span>الإجابة الخاطئة تخصم النقاط</span></label>
+        <label class="switch" for="opt-phones" id="opt-phones-row"><input type="checkbox" id="opt-phones"><span>كل فريق يضغط زرار من الموبايل، وأول فريق يضغط يجاوب</span></label>
       </section>
 
       <section class="card" id="card-race" aria-labelledby="h-race" hidden>
@@ -346,6 +353,7 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
     <div class="board-bar">
       <p class="turn" id="turn"></p>
       <div class="tools">
+        <button class="ghost" id="b-room" type="button" hidden></button>
         <button class="ghost" id="b-sound" type="button"></button>
         <button class="ghost" id="b-full" type="button">ملء الشاشة</button>
         <button class="ghost" id="b-setup" type="button">الإعداد</button>
@@ -425,6 +433,10 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
       </svg>
       <span class="n" aria-hidden="true"><span id="t-num"></span><small id="t-state"></small></span>
     </button>
+    <div class="qbuzz" id="q-buzz" hidden aria-live="assertive">
+      <p id="q-buzz-text"></p>
+      <button class="ghost" id="q-rebuzz" type="button" hidden>إجابة غلط؟ افتحوا الأزرار للفرق التانية</button>
+    </div>
     <div class="qanswer" id="q-answer" hidden>
       <span class="lbl">الإجابة</span>
       <strong id="q-a"></strong>
@@ -616,7 +628,8 @@ function defaults(){
     mode:"board",
     racePicks:[],
     raceSettings:{n:10,time:20},
-    race:null
+    race:null,
+    broom:null
   };
 }
 function normalize(s){
@@ -635,6 +648,8 @@ function normalize(s){
   const raceOk = r && typeof r === "object" && /^\d{4}$/.test(r.code || "") && Array.isArray(r.rounds) && r.rounds.every(x => x && BY_ID[x.qid] && Array.isArray(x.opts))
     && r.players && typeof r.players === "object" && r.phase !== "closed" && (Date.now() - (r.createdAt || 0)) < 12 * 3600 * 1000;
   if (!raceOk) out.race = null;
+  const B = out.broom;
+  if (!(B && typeof B === "object" && /^\d{4}$/.test(B.code || "") && B.players && typeof B.players === "object" && (Date.now() - (B.createdAt || 0)) < 12 * 3600 * 1000)) out.broom = null;
   return out;
 }
 let state = defaults();
@@ -787,6 +802,8 @@ function renderSetupInner(){
   renderSeg($("seg-cols"), [[4,fmt(4)],[5,fmt(5)],[6,fmt(6)]], cols, v => { st.cols = v; if (state.picks.length > v) state.picks.length = v; save(); renderSetup(); });
   renderSeg($("seg-time"), [[20,fmt(20) + " ث"],[30,fmt(30) + " ث"],[45,fmt(45) + " ث"],[0,"مفتوح"]], st.time, v => { st.time = v; save(); renderSetup(); });
   $("opt-deduct").checked = !!st.deduct;
+  $("opt-phones").checked = !!st.phones;
+  $("opt-phones-row").hidden = !RACE_OK;
 
   const full = state.picks.length >= cols;
   catsEl.replaceChildren(...BANK.map(c => {
@@ -860,7 +877,9 @@ function startGame(){
   const live = [];
   cats.forEach((c,ci) => c.cells.forEach((id,ri) => { if (id && ri >= 2) live.push(ci + "-" + ri); }));
   state.game = {gid:uuid(), cats, used:{}, dd: live.length ? pickOne(live) : null, scores, turn:0, plays:[], synced:false};
-  save(); renderBoard(); setMsg($("board-msg"), ""); show("board");
+  save(); renderBoard(); setMsg($("board-msg"), "");
+  if (phonesOn()){ bLast = null; openBoardRoom(); bPhase = "lobby"; show("lobby"); renderBoardLobby(); bPush(true); }
+  else show("board");
   const g = state.game, teams = state.teams.map((t,i) => tname(t,i)), slugs = cats.map(c => c.slug);
   queue(() => store.gameStarted(g, teams, slugs));
   return g;
@@ -954,7 +973,7 @@ function openQ(ci, ri){
   if (!g || g.used[key] || !g.cats[ci].cells[ri]) return;
   primeAudio();
   const dd = g.dd === key;
-  cur = {ci, ri, key, value: VALUES[ri] * (dd ? 2 : 1), revealed:false, wrong:new Set(), swapped:false, skipped:null};
+  cur = {ci, ri, key, value: VALUES[ri] * (dd ? 2 : 1), revealed:false, wrong:new Set(), swapped:false, skipped:null, out:new Set(), buzz:null, round:0};
   qover.querySelector(".qcard").append($("qflag")); flagCtx = "board";
   $("q-cat").textContent = g.cats[ci].name;
   $("q-val").textContent = fmt(cur.value) + " نقطة";
@@ -963,6 +982,8 @@ function openQ(ci, ri){
   $("q-answer").hidden = true; $("q-pre").hidden = false; $("q-post").hidden = true;
   qover.hidden = false;
   startTimer();
+  if (bRoom){ bPhase = "buzz"; bPush(true); }
+  renderBuzz();
   if (dd) beep(988, .18, .12);
   $("q-reveal").focus();
 }
@@ -974,6 +995,8 @@ function swapQ(){
   g.cats[cur.ci].cells[cur.ri] = alt.id;
   cur.swapped = true;
   save(); fillQuestion(); startTimer();
+  if (bRoom){ cur.buzz = null; cur.out.clear(); cur.round = (cur.round || 0) + 1; bPhase = "buzz"; bPush(true); }
+  renderBuzz();
 }
 function startTimer(){
   stopTimer();
@@ -1021,13 +1044,15 @@ function reveal(){
   stopTimer(); drawTimer();
   $("q-answer").hidden = false; $("q-pre").hidden = true; $("q-post").hidden = false;
   renderJudge();
-  const first = document.querySelector("#judge .jt-ok"); if (first) first.focus();
+  if (bRoom){ bPhase = "reveal"; bPush(true); }
+  renderBuzz();
+  const first = document.querySelector(cur.buzz ? "#judge .jt.buzzed .jt-ok" : "#judge .jt-ok") || document.querySelector("#judge .jt-ok"); if (first) first.focus();
 }
 function renderJudge(){
   const v = cur.value;
   $("judge").replaceChildren(...state.teams.map((t,i) => {
     const bad = cur.wrong.has(t.id);
-    return h("div",{class:"jt",style:"--tc:" + t.color},
+    return h("div",{class:"jt" + (cur.buzz && cur.buzz.team === t.id ? " buzzed" : ""),style:"--tc:" + t.color},
       h("button",{class:"jt-ok",type:"button","aria-label":tname(t,i) + " أجاب إجابة صحيحة، " + fmtS(v),onclick:() => award(t.id)}, tname(t,i), h("small",null,fmtS(v))),
       state.settings.deduct ? h("button",{class:"jt-bad",type:"button",disabled:bad ? true : null,"aria-label":tname(t,i) + " أجاب إجابة خاطئة، " + fmtS(-v),onclick:() => wrong(t.id)}, bad ? fmtS(-v) : "خطأ") : null);
   }));
@@ -1047,6 +1072,7 @@ function award(id){
   g.scores[id] = (g.scores[id] || 0) + cur.value;
   g.used[cur.key] = {by:id};
   g.turn = Math.max(0, state.teams.findIndex(t => t.id === id));
+  bLast = {team:id, pts:cur.value};
   finish("correct", id);
   closeQ();
 }
@@ -1054,6 +1080,7 @@ function nobody(){
   const g = state.game; if (!g || !cur) return;
   g.used[cur.key] = {by:null};
   g.turn = (g.turn + 1) % state.teams.length;
+  bLast = {team:null};
   finish("none", null);
   closeQ();
 }
@@ -1066,11 +1093,13 @@ function wrong(id){
 function closeQ(){
   stopTimer(); qover.hidden = true; cur = null;
   save(); renderBoard();
+  if (bRoom){ bPhase = "idle"; bPush(true); }
   if (isDone(state.game)) setTimeout(showEnd, 250);
 }
 function cancelQ(){
   if (cur && cur.skipped){ const g = state.game; g.cats[cur.ci].cells[cur.ri] = cur.skipped; save(); }
   stopTimer(); qover.hidden = true; cur = null; renderBoard();
+  if (bRoom){ bPhase = "idle"; bPush(true); }
 }
 
 /* ===== flag a question ===== */
@@ -1120,7 +1149,7 @@ function showEnd(){
   endMode = "board";
   endover.hidden = false;
   $("end-new").focus();
-  if (done){ const scores = ranked.map(r => ({team: tname(r.t,r.i), points: r.p})); queue(() => store.ended(g, scores)); }
+  if (done){ const scores = ranked.map(r => ({team: tname(r.t,r.i), points: r.p})); queue(() => store.ended(g, scores)); if (bRoom){ bPhase = "final"; bPush(true); } }
 }
 
 /* ===== speed race: this screen + everyone's phone =====
@@ -1299,27 +1328,23 @@ function renderLobby(){
   const R = state.race; if (!R) return;
   $("r-code").textContent = R.code;
   $("r-code").setAttribute("aria-label", "رقم الغرفة " + R.code.split("").join(" "));
-  const url = joinUrl(R.code);
-  $("r-url").textContent = url.replace(/^https?:\/\//, "").replace(/#.*$/, "");
-  const box = $("r-qr");
-  try { const qr = qrcode(0, "M"); qr.addData(url); qr.make(); box.innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true}); box.hidden = false; }
-  catch(e){ box.hidden = true; }
+  drawJoin(R.code);
   $("r-plan").textContent = "السباق: " + qWord(R.rounds.length) + "، و" + fmt(R.time) + " ثانية لكل سؤال.";
   $("r-start").textContent = R.phase === "final" ? "سباق جديد" : "ابدأوا السباق";
   setMsg($("r-msg"), "");
   renderRacePlayers(); renderConn();
 }
 function renderRacePlayers(){
-  const R = state.race; if (!R || scrLobby.hidden) return;
+  const R = state.race; if (!R || scrLobby.hidden || state.mode !== "race") return;
   const now = Date.now(), list = rankList(), played = R.i >= 0;
   $("r-players").replaceChildren(...list.map(x => h("li",{class:now - (seen[x.id] || 0) < 12000 ? null : "off"},
     x.name, played ? h("span",{class:"pts"}, fmt(x.score)) : null)));
   $("r-pcount").textContent = fmt(list.length);
 }
 function renderConn(){
-  const el = $("r-conn");
-  el.textContent = rConn === "open" ? "الغرفة متصلة ✓" : rConn === "refused" ? "رفض الخادم الاتصال. أغلقوا الغرفة وافتحوها من جديد." : "جارٍ الاتصال بالخادم…";
-  el.classList.toggle("is-err", rConn === "refused" || rConn === "down");
+  const el = $("r-conn"), c = state.mode === "race" ? rConn : bConn;
+  el.textContent = c === "open" ? "الغرفة متصلة ✓" : c === "refused" ? "رفض الخادم الاتصال. أغلقوا الغرفة وافتحوها من جديد." : "جارٍ الاتصال بالخادم…";
+  el.classList.toggle("is-err", c === "refused" || c === "down");
 }
 function startRace(){
   const R = state.race; if (!R) return;
@@ -1464,19 +1489,171 @@ function confirmTap(btn, label, fn){
   setTimeout(() => { if (btn.dataset.armed === "1"){ btn.dataset.armed = ""; btn.textContent = label; } }, 3000);
 }
 
+/* ===== phone buzzers for the board =====
+   Same live room as the speed race. Each player joins from their phone and picks a team; while a question
+   is open, the first team to press its button answers. The screen stays the referee and judges as before. */
+let bRoom = null, bConn = "", bSeq = 0, bSendT = 0, bPulse = 0, bPhase = "lobby", bLast = null;
+const phonesOn = () => RACE_OK && !!state.settings.phones;
+function teamOf(id){ const i = state.teams.findIndex(t => t.id === id); return i < 0 ? null : {t:state.teams[i], i}; }
+function drawJoin(code){
+  $("r-code").textContent = code;
+  $("r-code").setAttribute("aria-label", "رقم الغرفة " + code.split("").join(" "));
+  const url = joinUrl(code);
+  $("r-url").textContent = url.replace(/^https?:\/\//, "").replace(/#.*$/, "");
+  const box = $("r-qr");
+  try { const qr = qrcode(0, "M"); qr.addData(url); qr.make(); box.innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true}); box.hidden = false; }
+  catch(e){ box.hidden = true; }
+}
+function openBoardRoom(){
+  if (!RACE_OK) return null;
+  let R = state.broom;
+  if (!R){ R = state.broom = {code:String(1000 + Math.floor(Math.random() * 9000)), rid:uuid().slice(0, 8), createdAt:Date.now(), players:{}}; save(); }
+  if (!bRoom){
+    bConn = "connecting";
+    bRoom = liveRoom({topic:raceTopic(R.code), onMessage:onBoardPhone, onStatus:s => { bConn = s; renderConn(); if (s === "open") bPush(true); }});
+    clearInterval(bPulse); bPulse = setInterval(() => { bPush(true); renderBoardLobby(); renderRoomChip(); }, 3000);
+  }
+  return R;
+}
+function closeBoardRoom(){
+  if (bRoom && state.broom){ bPhase = "closed"; const r = bRoom; r.send("state", bPublic()); setTimeout(() => r.close(), 600); }
+  bRoom = null; clearInterval(bPulse); clearTimeout(bSendT); bSendT = 0;
+  state.broom = null; save(); renderRoomChip(); renderBuzz();
+}
+function stopBoardPhones(){
+  closeBoardRoom();
+  state.settings.phones = false; save(); renderSetup();
+  if (state.game){ renderBoard(); show("board"); } else show("setup");
+}
+function bKey(){
+  const g = state.game; if (!g || !cur) return "";
+  return g.gid.slice(0, 6) + ":" + cur.key + ":" + String(g.cats[cur.ci].cells[cur.ri]).slice(0, 6) + ":" + (cur.round || 0);
+}
+function bPublic(){
+  const R = state.broom, g = state.game;
+  const s = {v:1, hs:HS, seq:++bSeq, rid:R ? R.rid : "", kind:"board", phase:bPhase,
+    teams:state.teams.map((t,i) => ({id:t.id, name:tname(t,i), color:t.color, score:g ? (g.scores[t.id] || 0) : 0})),
+    players:R ? Object.entries(R.players).map(([id,p]) => ({id, name:p.name, team:p.team || null})) : [], last:bLast};
+  if (cur && g && (bPhase === "buzz" || bPhase === "locked" || bPhase === "reveal")){
+    const rec = BY_ID[g.cats[cur.ci].cells[cur.ri]];
+    s.q = {key:bKey(), cat:g.cats[cur.ci].name, val:cur.value, text:rec.q.q, out:[...cur.out], buzz:cur.buzz || null};
+    if (bPhase === "reveal") s.q.answer = rec.q.a;
+  }
+  return s;
+}
+function bPush(now){
+  if (!bRoom || !state.broom) return;
+  if (now){ clearTimeout(bSendT); bSendT = 0; bRoom.send("state", bPublic()); return; }
+  if (bSendT) return;
+  bSendT = setTimeout(() => { bSendT = 0; if (bRoom && state.broom) bRoom.send("state", bPublic()); }, 200);
+}
+function setBPhase(p){ if (!bRoom) return; bPhase = p; bPush(true); }
+function onBoardPhone(ev, p){
+  const R = state.broom;
+  if (!R || !p || typeof p.pid !== "string" || !p.pid || p.pid.length > 64) return;
+  if (ev === "hello"){
+    const name = cleanName(p.name); if (!name) return;
+    const team = (typeof p.team === "string" && teamOf(p.team)) ? p.team : null;
+    const fresh = Date.now() - (seen[p.pid] || 0) > 6000;
+    seen[p.pid] = Date.now();
+    const pl = R.players[p.pid];
+    if (!pl){ if (Object.keys(R.players).length >= 40) return; R.players[p.pid] = {name, team}; save(); beep(1046, .08, .08); }
+    else if (pl.name !== name || pl.team !== team){ pl.name = name; pl.team = team; save(); }
+    else if (!fresh) return;
+    renderBoardLobby(); renderRoomChip(); bPush();
+    return;
+  }
+  if (ev === "buzz"){
+    if (bPhase !== "buzz" || !cur || cur.revealed || p.key !== bKey()) return;
+    const pl = R.players[p.pid];
+    if (!pl || !pl.team || !teamOf(pl.team) || cur.out.has(pl.team)) return;
+    seen[p.pid] = Date.now();
+    cur.buzz = {pid:p.pid, name:pl.name, team:pl.team};
+    if (T && T.running){ T.left = Math.max(0, (T.endAt - performance.now()) / 1000); T.running = false; cur.buzzPaused = true; drawTimer(); }
+    beep(1318, .16, .16);
+    bPhase = "locked"; bPush(true); renderBuzz();
+  }
+}
+function reopenBuzzers(){
+  if (!cur || !cur.buzz || cur.revealed) return;
+  const team = cur.buzz.team;
+  cur.out.add(team);
+  if (state.settings.deduct) wrong(team);
+  cur.buzz = null; cur.round = (cur.round || 0) + 1;
+  if (T && !T.running && cur.buzzPaused && T.left > 0){ T.endAt = performance.now() + T.left * 1000; T.running = true; drawTimer(); }
+  cur.buzzPaused = false;
+  bPhase = "buzz"; bPush(true); renderBuzz();
+}
+function renderBuzz(){
+  const box = $("q-buzz");
+  if (!bRoom || !cur){ box.hidden = true; return; }
+  box.hidden = false;
+  const txt = $("q-buzz-text"), b = cur.buzz;
+  if (b){
+    const tm = teamOf(b.team);
+    box.classList.add("hit"); box.style.setProperty("--tc", tm ? tm.t.color : "var(--brass)");
+    txt.textContent = "🔔 " + b.name + (tm ? " (" + tname(tm.t, tm.i) + ")" : "") + " ضغط الأول";
+  } else {
+    box.classList.remove("hit"); box.style.removeProperty("--tc");
+    const out = state.teams.map((t,i) => cur.out.has(t.id) ? tname(t,i) : null).filter(Boolean);
+    txt.textContent = cur.revealed ? "" : "الأزرار مفتوحة على الموبايلات: أول فريق يضغط يجاوب." + (out.length ? " خرج من السؤال: " + out.join("، ") + "." : "");
+  }
+  $("q-rebuzz").hidden = !(b && !cur.revealed);
+  if (cur.revealed) renderJudge();
+}
+function renderBoardLobby(){
+  const R = state.broom; if (!R || state.mode !== "board" || scrLobby.hidden) return;
+  drawJoin(R.code);
+  $("r-plan").textContent = "كل واحد يدخل باسمه ويختار فريقه. لما السؤال يظهر، أول فريق يضغط الزرار على الموبايل يجاوب.";
+  const now = Date.now(), list = Object.entries(R.players);
+  $("r-players").replaceChildren(...list.map(([id,p]) => {
+    const tm = teamOf(p.team);
+    return h("li",{class:now - (seen[id] || 0) < 12000 ? null : "off",style:tm ? "--tc:" + tm.t.color : null},
+      tm ? h("span",{class:"dot","aria-hidden":"true"}) : null, p.name,
+      h("span",{class:"tm"}, tm ? tname(tm.t, tm.i) : "لسه ما اختارش فريق"));
+  }));
+  $("r-pcount").textContent = fmt(list.length);
+  $("r-start").textContent = state.game && Object.keys(state.game.used).length ? "ارجعوا إلى اللوحة" : "ابدأوا اللعب";
+  setMsg($("r-msg"), "");
+  renderConn();
+}
+function renderRoomChip(){
+  const b = $("b-room"), R = state.broom;
+  b.hidden = !(R && bRoom);
+  if (R) b.textContent = "الغرفة " + R.code + " · " + fmt(Object.keys(R.players).length) + " لاعب";
+}
+function showBoardLobby(){ openBoardRoom(); show("lobby"); renderBoardLobby(); }
+
 /* ===== wiring ===== */
 function bind(){
   $("add-team").addEventListener("click", addTeam);
   $("opt-deduct").addEventListener("change", e => { state.settings.deduct = e.target.checked; save(); });
   $("go").addEventListener("click", () => { setMsg($("setup-msg"), ""); if (state.mode === "race") openRoom(); else startGame(); });
-  $("resume-go").addEventListener("click", () => { if (state.mode === "race") resumeRace(); else { renderBoard(); show("board"); } });
+  $("resume-go").addEventListener("click", () => {
+    if (state.mode === "race"){ resumeRace(); return; }
+    if (phonesOn()){ openBoardRoom(); bPhase = "idle"; bPush(true); }
+    renderBoard(); show("board"); renderRoomChip();
+  });
+  $("opt-phones").addEventListener("change", e => { state.settings.phones = e.target.checked; if (!state.settings.phones && state.broom) closeBoardRoom(); save(); });
+  $("b-room").addEventListener("click", showBoardLobby);
+  $("q-rebuzz").addEventListener("click", reopenBuzzers);
   document.querySelectorAll("#modes [data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
-  $("r-start").addEventListener("click", startRace);
-  $("r-close").addEventListener("click", e => { if (state.race && Object.keys(state.race.players).length) confirmTap(e.currentTarget, "أغلقوا الغرفة", closeRoom); else closeRoom(); });
+  $("r-start").addEventListener("click", () => {
+    if (state.mode === "race"){ startRace(); return; }
+    bPhase = "idle"; bPush(true); renderBoard(); show("board"); renderRoomChip();
+  });
+  $("r-close").addEventListener("click", e => {
+    if (state.mode === "race"){ if (state.race && Object.keys(state.race.players).length) confirmTap(e.currentTarget, "أغلقوا الغرفة", closeRoom); else closeRoom(); return; }
+    if (state.broom && Object.keys(state.broom.players).length) confirmTap(e.currentTarget, "أغلقوا الغرفة", stopBoardPhones); else stopBoardPhones();
+  });
   $("r-next").addEventListener("click", nextRaceQ);
   $("r-now").addEventListener("click", revealRace);
   $("r-stop").addEventListener("click", e => confirmTap(e.currentTarget, "إنهاء السباق", finishRace));
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && room){ room.wake(); pushState(true); } });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (room){ room.wake(); pushState(true); }
+    if (bRoom){ bRoom.wake(); bPush(true); }
+  });
 
   $("b-setup").addEventListener("click", () => { renderSetup(); show("setup"); });
   $("b-end").addEventListener("click", showEnd);
@@ -1501,6 +1678,7 @@ function bind(){
   $("end-new").addEventListener("click", () => {
     if (endMode === "race"){ newRaceSameRoom(); return; }
     state.game = null; save(); endover.hidden = true; renderSetup(); renderBoard(); show("setup");
+    if (bRoom){ bLast = null; bPhase = "lobby"; bPush(true); }
   });
   $("end-back").addEventListener("click", () => { if (endMode === "race") closeRoom(); else endover.hidden = true; });
 

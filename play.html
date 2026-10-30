@@ -20,6 +20,7 @@
   --brass:#e6b04a; --brass-deep:#a2741f; --brass-ink:#241904;
   --bad:#e8705f; --good:#5cc98f;
   --o0:#b42318; --o1:#175cd3; --o2:#a15c07; --o3:#067647;
+  --team-ink:#15110a;
   --f-display:"Lalezar","Readex Pro",system-ui,Tahoma,sans-serif;
   --f-body:"Readex Pro",system-ui,"Segoe UI",Tahoma,sans-serif;
   color-scheme:dark;
@@ -99,6 +100,14 @@ input:focus{outline:none;border-color:var(--brass)}
 .rank .pos{font-family:var(--f-display);color:var(--muted);min-width:1.4em}
 .rank .nm{flex:1;min-width:0;text-align:start;font-weight:600;overflow-wrap:anywhere}
 .rank .p{font-family:var(--f-display);font-size:1.25rem;font-variant-numeric:tabular-nums}
+.team-pick{display:grid;gap:10px}
+.tp{display:block;width:100%;padding:16px 18px;border-radius:14px;border:0;background:var(--tc);color:var(--team-ink);font-weight:700;font-size:1.2rem;cursor:pointer;text-align:start;box-shadow:0 3px 0 rgba(0,0,0,.28)}
+.tp:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.28)}
+.buzzbtn{align-self:center;width:min(72vw,280px);aspect-ratio:1;border-radius:50%;border:0;background:var(--tc);color:var(--team-ink);font-family:var(--f-display);font-size:2.6rem;cursor:pointer;margin:10px 0 4px;box-shadow:0 8px 0 rgba(0,0,0,.32),inset 0 0 0 8px rgba(255,255,255,.22);touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.buzzbtn:active{transform:translateY(6px);box-shadow:0 2px 0 rgba(0,0,0,.32),inset 0 0 0 8px rgba(255,255,255,.22)}
+.buzzbtn:disabled{opacity:.6;transform:translateY(6px);box-shadow:0 2px 0 rgba(0,0,0,.32);cursor:default}
+.rank li .dot{width:12px;height:12px;border-radius:50%;background:var(--tc);flex:none}
+.center-t{text-align:center}
 .brand-foot{margin:0;color:var(--muted);font-size:.8rem;text-align:center}
 .brand-foot:empty{display:none}
 @media (min-width:480px){ .opts{grid-template-columns:1fr 1fr} .opt{min-height:88px} }
@@ -112,7 +121,7 @@ input:focus{outline:none;border-color:var(--brass)}
   <header class="top">
     <div class="brand">
       <p class="logo">قهوة الطيبين</p>
-      <p class="tag">سباق السرعة</p>
+      <p class="tag" id="tag">العب من موبايلك</p>
     </div>
     <p class="me" id="me" hidden></p>
   </header>
@@ -122,7 +131,7 @@ input:focus{outline:none;border-color:var(--brass)}
     <!-- join -->
     <section class="view" id="v-join">
       <form class="card" id="join-form" novalidate>
-        <h1>ادخل السباق</h1>
+        <h1>ادخل اللعبة</h1>
         <label for="in-code">رقم الغرفة (يظهر على الشاشة)</label>
         <input id="in-code" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="next">
         <label for="in-name">اسمك</label>
@@ -138,8 +147,26 @@ input:focus{outline:none;border-color:var(--brass)}
         <p class="big-ico" id="w-ico" aria-hidden="true">✓</p>
         <h2 id="w-title"></h2>
         <p class="sub" id="w-sub"></p>
+        <ol class="rank" id="w-scores" hidden></ol>
+        <button class="ghost" id="w-team" type="button" hidden>غيّر فريقك</button>
         <button class="ghost" id="w-leave" type="button" hidden>غيّر الغرفة أو الاسم</button>
       </div>
+    </section>
+
+    <!-- board: pick a team -->
+    <section class="view" id="v-team" hidden>
+      <div class="card">
+        <h2>اختار فريقك</h2>
+        <div class="team-pick" id="t-pick"></div>
+      </div>
+    </section>
+
+    <!-- board: buzzer -->
+    <section class="view" id="v-buzz" hidden>
+      <div class="qmeta"><span id="b-val"></span><b id="b-cat"></b></div>
+      <p class="qtext" id="b-text"></p>
+      <button class="buzzbtn" id="b-btn" type="button">اضغط!</button>
+      <p class="sub center-t" id="b-note"></p>
     </section>
 
     <!-- question -->
@@ -175,7 +202,7 @@ input:focus{outline:none;border-color:var(--brass)}
     <!-- final -->
     <section class="view" id="v-final" hidden>
       <div class="card center">
-        <p class="sub">انتهى السباق</p>
+        <p class="sub" id="f-sub">انتهى السباق</p>
         <h1 id="f-title"></h1>
         <p class="pts" id="f-pts"></p>
         <ol class="rank" id="f-rank"></ol>
@@ -293,12 +320,12 @@ const fmt = n => nf.format(n);
 const fmtS = n => new Intl.NumberFormat("ar-EG",{signDisplay:"always"}).format(n);
 const SHAPES = ["▲","◆","●","■"];
 const LS = BRAND.storageKey + ":race-phone";
-const VIEWS = ["v-join","v-wait","v-q","v-sent","v-res","v-final","v-closed"];
+const VIEWS = ["v-join","v-wait","v-team","v-buzz","v-q","v-sent","v-res","v-final","v-closed"];
 
 let saved = load();
 let me = {code:"", name:"", pid:""};
 let room = null, pulse = 0, tick = 0, lost = 0;
-let last = null, hs = null, seq = -1, everOpen = false;
+let last = null, hs = null, seq = -1, everOpen = false, picking = false, buzzedKey = "";
 const shownAt = {}, deadline = {};
 
 function load(){ try { const o = JSON.parse(localStorage.getItem(LS)); return o && typeof o === "object" ? o : {}; } catch(e){ return {}; } }
@@ -356,7 +383,7 @@ function join(code, name){
   saved.code = code; saved.name = name; saved.pid = pid; persist();
   me = {code, name, pid};
   if (location.hash.slice(1) !== code){ try { history.replaceState(null, "", "#" + code); } catch(e){} }
-  last = null; hs = null; seq = -1; everOpen = false;
+  last = null; hs = null; seq = -1; everOpen = false; picking = false; buzzedKey = "";
   $("me").hidden = false; $("me").replaceChildren("أنت: ", h("b", null, name));
   waitView("…", "جارٍ الدخول إلى الغرفة " + fmt(Number(code)) + "…", "");
   room = liveRoom({topic: topicFor(code), onMessage, onStatus});
@@ -371,7 +398,7 @@ function stop(){
   if (room){ room.close(); room = null; }
   $("conn").hidden = true;
 }
-function hello(){ if (room) room.send("hello", {pid:me.pid, name:me.name}); }
+function hello(){ if (room) room.send("hello", {pid:me.pid, name:me.name, team:(saved.teamCode === me.code ? saved.team || null : null)}); }
 
 /* ===== messages from the host screen ===== */
 function onStatus(s){
@@ -396,12 +423,14 @@ function myRank(){
 function waitView(ico, title, sub, canLeave){
   view("v-wait");
   $("w-ico").textContent = ico; $("w-title").textContent = title; $("w-sub").textContent = sub || "";
-  $("w-leave").hidden = !canLeave;
+  $("w-leave").hidden = !canLeave; $("w-scores").hidden = true; $("w-team").hidden = true;
 }
 function render(){
   const p = last; if (!p) return;
   const q = p.q || null;
   if (p.phase === "closed"){ stop(); view("v-closed"); return; }
+  if (p.kind === "board"){ boardRender(p); return; }
+  $("tag").textContent = "سباق السرعة";
   if (p.phase === "lobby"){
     const ps = players(), inRoom = ps.some(x => x.id === me.pid);
     const others = ps.length - (inRoom ? 1 : 0);
@@ -479,12 +508,87 @@ function resultView(q){
   $("r-rank").textContent = mr ? "ترتيبك " + fmt(mr.pos) + " من " + fmt(mr.of) + " · مجموعك " + fmt(mr.score) + " نقطة" : "";
 }
 function finalView(){
-  view("v-final");
+  view("v-final"); $("f-sub").textContent = "انتهى السباق";
   const mr = myRank(), ps = players();
   $("f-title").textContent = mr ? (mr.pos === 1 ? "أنت الفائز! 🏆" : "المركز " + fmt(mr.pos) + " من " + fmt(mr.of)) : "النتيجة النهائية";
   $("f-pts").textContent = mr ? fmt(mr.score) + " نقطة" : "";
   $("f-rank").replaceChildren(...ps.slice(0, 5).map((x,k) => h("li",{class:x.id === me.pid ? "mine" : null},
     h("span",{class:"pos"}, fmt(k + 1)), h("span",{class:"nm"}, x.name), h("span",{class:"p"}, fmt(x.score || 0)))));
+}
+
+/* ===== board: teams and buzzer ===== */
+function bTeams(){ return Array.isArray(last && last.teams) ? last.teams : []; }
+function myTeam(){
+  const ok = id => !!id && bTeams().some(t => t.id === id);
+  if (saved.teamCode === me.code && ok(saved.team)) return saved.team;
+  const mine = players().find(x => x.id === me.pid);
+  return mine && ok(mine.team) ? mine.team : null;
+}
+function teamName(id){ const t = bTeams().find(x => x.id === id); return t ? t.name : ""; }
+function teamColor(id){ const t = bTeams().find(x => x.id === id); return t ? t.color : null; }
+function scoresList(tid){
+  const teams = bTeams().slice().sort((a,b) => (b.score || 0) - (a.score || 0));
+  const el = $("w-scores"); el.hidden = !teams.length;
+  el.replaceChildren(...teams.map(t => h("li",{class:t.id === tid ? "mine" : null,style:"--tc:" + t.color},
+    h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), h("span",{class:"p"}, fmt(t.score || 0)))));
+}
+function boardRender(p){
+  $("tag").textContent = "لوحة الفئات";
+  const tid = picking ? null : myTeam();
+  if (!tid){ teamView(); return; }
+  $("me").hidden = false;
+  $("me").replaceChildren("أنت: ", h("b", null, me.name), " · ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
+  const q = p.q || null;
+  if (q && p.phase === "reveal"){ waitView("✓", "الإجابة: " + (q.answer || ""), "استنوا الحكم على الشاشة."); scoresList(tid); return; }
+  if (q && p.phase === "locked" && q.buzz){
+    const b = q.buzz;
+    if (b.pid === me.pid) waitView("🔔", "إنت أول واحد ضغط!", "جاوب بصوت عالي.");
+    else if (b.team === tid) waitView("🔔", b.name + " من فريقك ضغط الأول", "ساعدوه في الإجابة.");
+    else waitView("✋", b.name + " من " + teamName(b.team) + " ضغط الأول", "لو إجابته غلط، الأزرار هتفتح تاني.");
+    return;
+  }
+  if (q && p.phase === "buzz"){
+    if (Array.isArray(q.out) && q.out.includes(tid)){ waitView("✗", "فريقك خرج من السؤال ده", "استنوا الفرق التانية."); return; }
+    buzzView(q, tid); return;
+  }
+  if (p.phase === "final"){ boardFinal(tid); return; }
+  const l = p.last;
+  let sub = p.phase === "lobby" ? "استنوا لحد ما اللعب يبدأ على الشاشة." : "استنوا السؤال الجاي على الشاشة.";
+  if (p.phase === "idle" && l) sub = (l.team ? teamName(l.team) + " كسب " + fmt(l.pts || 0) + " نقطة. " : "محدش جاوب السؤال اللي فات. ") + sub;
+  waitView("✓", "إنت في " + teamName(tid), sub, true);
+  $("w-team").hidden = false;
+  scoresList(tid);
+}
+function teamView(){
+  view("v-team");
+  $("t-pick").replaceChildren(...bTeams().map(t => h("button",{class:"tp",type:"button",style:"--tc:" + t.color,onclick:() => pickTeam(t.id)}, t.name)));
+}
+function pickTeam(id){ picking = false; saved.team = id; saved.teamCode = me.code; persist(); hello(); render(); }
+function buzzView(q, tid){
+  view("v-buzz");
+  $("b-cat").textContent = q.cat || ""; $("b-val").textContent = fmt(q.val || 0) + " نقطة";
+  $("b-text").textContent = q.text || "";
+  const btn = $("b-btn"), sent = buzzedKey === q.key;
+  btn.style.setProperty("--tc", teamColor(tid) || "var(--brass)");
+  btn.disabled = sent; btn.textContent = sent ? "ضغطت!" : "اضغط!";
+  $("b-note").textContent = sent ? "مستنيين نعرف مين ضغط الأول…" : "أول فريق يضغط يجاوب.";
+}
+function doBuzz(e){
+  if (e && e.type === "pointerdown") e.preventDefault();
+  const p = last; if (!p || p.kind !== "board" || p.phase !== "buzz" || !p.q || buzzedKey === p.q.key || !room) return;
+  buzzedKey = p.q.key;
+  room.send("buzz", {pid:me.pid, key:p.q.key});
+  try { if (navigator.vibrate) navigator.vibrate(40); } catch(err){}
+  buzzView(p.q, myTeam());
+}
+function boardFinal(tid){
+  view("v-final"); $("f-sub").textContent = "انتهت اللوحة";
+  const ranked = bTeams().slice().sort((a,b) => (b.score || 0) - (a.score || 0));
+  const top = ranked.length ? ranked[0].score || 0 : 0, winners = ranked.filter(t => (t.score || 0) === top);
+  $("f-title").textContent = winners.length !== 1 ? "تعادل" : winners[0].id === tid ? "فريقك كسب! 🏆" : "مبروك يا " + winners[0].name;
+  $("f-pts").textContent = "";
+  $("f-rank").replaceChildren(...ranked.map((t,k) => h("li",{class:t.id === tid ? "mine" : null,style:"--tc:" + t.color},
+    h("span",{class:"pos"}, fmt(k + 1)), h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), h("span",{class:"p"}, fmt(t.score || 0)))));
 }
 
 /* ===== screen + lifecycle ===== */
@@ -498,6 +602,9 @@ document.addEventListener("visibilitychange", () => {
 $("join-form").addEventListener("submit", submitJoin);
 $("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 4 && !$("in-name").value) $("in-name").focus(); });
 $("w-leave").addEventListener("click", () => showJoin());
+$("w-team").addEventListener("click", () => { picking = true; render(); });
+$("b-btn").addEventListener("pointerdown", doBuzz);
+$("b-btn").addEventListener("click", doBuzz);
 $("c-again").addEventListener("click", () => { saved.code = ""; persist(); try { history.replaceState(null, "", location.pathname); } catch(e){} showJoin(); });
 window.addEventListener("hashchange", () => { const c = codeFromUrl(); if (c && c !== me.code) showJoin(); });
 
