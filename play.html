@@ -79,6 +79,7 @@ input:focus{outline:none;border-color:var(--brass)}
 .bar.warn i{background:var(--bad)}
 .left{margin:-6px 0 0;color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
 .opts{display:grid;grid-template-columns:1fr;gap:10px}
+#q-opts .buzzbtn{justify-self:center}
 .opt{
   display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:12px 16px;border:0;border-radius:14px;cursor:pointer;
   background:var(--oc);color:#fff;text-align:start;font-size:1.12rem;font-weight:600;line-height:1.35;box-shadow:0 3px 0 rgba(0,0,0,.28);
@@ -296,6 +297,9 @@ button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;op
   .scores{grid-template-columns:minmax(0,1fr)}
   .score + .score{border-inline-start:0;border-top:2px dashed rgba(237,237,230,.22)}
 }
+
+/* the race on the painted wall */
+#rover{background:var(--wall)}
 
 </style>
 </head>
@@ -521,6 +525,22 @@ let me = {code:"", name:"", pid:""};
 let room = null, pulse = 0, tick = 0, lost = 0;
 let last = null, hs = null, seq = -1, everOpen = false, buzzedKey = "", pickSent = null, pickT = 0, helpSent = null, helpT = 0;
 const shownAt = {}, deadline = {};
+/* clock sync with the screen, for the buzzer race: the best of the last few ping/pong samples (lowest round trip) */
+let clk = null, clkT = 0, rbSent = "";
+const clkS = [];
+function syncClock(){ if (room) room.send("ping", {pid:me.pid, t:performance.now()}); }
+function onPong(p){
+  if (!p || p.pid !== me.pid || typeof p.t !== "number" || typeof p.h !== "number") return;
+  const now = performance.now(), rtt = now - p.t;
+  if (rtt < 0 || rtt > 4000) return;
+  clkS.push({rtt, off:p.h - (p.t + rtt / 2)}); if (clkS.length > 8) clkS.shift();
+  clk = clkS.reduce((a,b) => b.rtt < a.rtt ? b : a);
+}
+function startClock(){
+  if (clkT) return;
+  [0, 300, 700, 1200, 1900].forEach(d => setTimeout(syncClock, d));
+  clkT = setInterval(syncClock, 8000);
+}
 
 function load(){ try { const o = JSON.parse(localStorage.getItem(LS)); return o && typeof o === "object" ? o : {}; } catch(e){ return {}; } }
 function persist(){ try { localStorage.setItem(LS, JSON.stringify(saved)); } catch(e){} }
@@ -606,7 +626,7 @@ function join(code, name){
   keepAwake();
 }
 function stop(){
-  clearInterval(pulse); clearInterval(tick); clearTimeout(lost);
+  clearInterval(pulse); clearInterval(tick); clearTimeout(lost); clearInterval(clkT); clkT = 0; clkS.length = 0; clk = null;
   if (room){ room.close(); room = null; }
   $("conn").hidden = true;
 }
@@ -620,6 +640,7 @@ function onStatus(s){
   if (everOpen){ c.hidden = false; c.textContent = "انقطع الاتصال، جارٍ إعادة المحاولة…"; }
 }
 function onMessage(ev, p){
+  if (ev === "pong"){ onPong(p); return; }
   if (ev !== "state" || !p || typeof p !== "object") return;
   if (p.hs !== hs){ hs = p.hs; seq = -1; }
   if (typeof p.seq === "number"){ if (p.seq <= seq) return; seq = p.seq; }
@@ -643,6 +664,8 @@ function render(){
   if (p.phase === "closed"){ stop(); view("v-closed"); return; }
   if (p.kind === "board"){ boardRender(p); return; }
   $("tag").textContent = "سباق السرعة";
+  if (p.style === "buzz") startClock();
+  if (p.phase === "question" && q && q.style === "buzz"){ raceBuzzView(q); return; }
   if (p.phase === "lobby"){
     const ps = players(), inRoom = ps.some(x => x.id === me.pid);
     const others = ps.length - (inRoom ? 1 : 0);
@@ -688,6 +711,41 @@ function answer(q, k){
   try { if (navigator.vibrate) navigator.vibrate(25); } catch(e){}
   sentView(q, k);
 }
+/* buzzer race: one big button; the first press (by the synced clocks) answers out loud, the screen judges */
+function raceBuzzView(q){
+  const k = qkey(q.i);
+  deadline[k] = performance.now() + Math.max(0, Number(q.remain) || 0);   // the clock stops while someone answers
+  if (q.buzz){
+    if (q.buzz.pid === me.pid) waitView("bell", "إنت أول واحد ضغط!", "جاوب بصوت عالي، والحكم على الشاشة.");
+    else waitView("bell", q.buzz.name + " ضغط الأول", "لو إجابته غلط، الزرار هيفتح تاني.");
+    return;
+  }
+  if (Array.isArray(q.out) && q.out.includes(me.pid)){ waitView("out", "خرجت من السؤال ده", "استنى السؤال الجاي."); return; }
+  view("v-q");
+  $("q-n").textContent = "سؤال " + fmt(q.i + 1) + " من " + fmt(q.n) + "، " + fmt(q.val || 0) + " نقطة";
+  $("q-cat").textContent = q.cat || "";
+  $("q-text").textContent = q.text || "";
+  const box = $("q-opts");
+  if (box.dataset.k !== q.key){
+    box.dataset.k = q.key;
+    const b = h("button",{class:"buzzbtn",id:"rb-btn",type:"button",style:"--tc:var(--brass)"}, "اضغط!");
+    b.addEventListener("pointerdown", raceBuzz); b.addEventListener("click", raceBuzz);
+    box.replaceChildren(b);
+  }
+  const btn = $("rb-btn"), sent = rbSent === q.key;
+  btn.disabled = sent; btn.textContent = sent ? "ضغطت!" : "اضغط!";
+  onTick();
+}
+function raceBuzz(e){
+  if (e && e.type === "pointerdown") e.preventDefault();
+  const at = performance.now(), p = last, q = p && p.q;
+  if (!q || p.phase !== "question" || q.style !== "buzz" || q.buzz || rbSent === q.key || !room) return;
+  if ((deadline[qkey(q.i)] || 0) - at <= 0) return;
+  rbSent = q.key;
+  room.send("buzz", {pid:me.pid, key:q.key, at:clk ? Math.round(at + clk.off) : null});
+  try { if (navigator.vibrate) navigator.vibrate(40); } catch(err){}
+  raceBuzzView(q);
+}
 function sentView(q, k){
   view("v-sent");
   const chip = $("s-chip");
@@ -704,7 +762,7 @@ function onTick(){
   $("q-bar").classList.toggle("warn", left <= 5000);
   const s = Math.ceil(left / 1000);
   $("q-left").textContent = left > 0 ? "باقي " + fmt(s) + " ث" : "انتهى الوقت";
-  if (left <= 0) document.querySelectorAll("#q-opts .opt").forEach(b => { b.disabled = true; });
+  if (left <= 0) document.querySelectorAll("#q-opts .opt, #q-opts .buzzbtn").forEach(b => { b.disabled = true; });
 }
 function resultView(q){
   view("v-res");
@@ -713,9 +771,9 @@ function resultView(q){
   card.classList.toggle("res-ok", !!(r && r.ok));
   card.classList.toggle("res-bad", !!(r && !r.ok));
   if (r && r.ok){ $("r-ico").textContent = "✓"; $("r-lead").textContent = "إجابة صحيحة!"; $("r-pts").textContent = fmtS(r.pts || 0); }
-  else if (r){ $("r-ico").textContent = "✗"; $("r-lead").textContent = "إجابة خاطئة"; $("r-pts").textContent = ""; }
+  else if (r){ $("r-ico").textContent = "✗"; $("r-lead").textContent = "إجابة خاطئة"; $("r-pts").textContent = r.pts ? fmtS(r.pts) : ""; }
   else { $("r-ico").textContent = "–"; $("r-lead").textContent = "لم تُجب عن هذا السؤال"; $("r-pts").textContent = ""; }
-  $("r-ans").textContent = (q.opts && q.correct != null) ? q.opts[q.correct] : "";
+  $("r-ans").textContent = q.style === "buzz" ? (q.answer || "") : (q.opts && q.correct != null) ? q.opts[q.correct] : "";
   const mr = myRank();
   $("r-rank").textContent = mr ? "ترتيبك " + fmt(mr.pos) + " من " + fmt(mr.of) + "، مجموعك " + fmt(mr.score) + " نقطة" : "";
 }
