@@ -114,7 +114,8 @@ button.mode:disabled{opacity:.5;cursor:not-allowed}
 .seg button:hover{background:var(--panel)}
 .seg button[aria-pressed="true"]{background:var(--brass);color:var(--brass-ink);font-weight:600}
 .switch{display:flex;align-items:center;gap:10px;cursor:pointer}
-.switch input{width:18px;height:18px;accent-color:var(--brass);margin:0}
+.switch input{width:18px;height:18px;accent-color:var(--brass);margin:0;flex:none}
+.sub-switch{margin-inline-start:28px}
 
 .cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .catpick{
@@ -256,6 +257,8 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
 .conn-note{margin:0;font-size:.92rem;color:var(--muted)}
 .conn-note.is-err{color:var(--bad)}
 .players .tm{font-weight:400;color:var(--muted);font-size:.85rem}
+.players .mv{border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;display:inline-flex;gap:10px;align-items:center;border-radius:999px}
+.players li:has(.mv):hover{border-color:var(--line-strong)}
 .qbuzz{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
 .qbuzz p{margin:0;color:inherit;opacity:.85;font-size:1rem}
 .qbuzz p:empty{display:none}
@@ -365,7 +368,8 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
         <div class="field"><span class="lbl" id="l-cols">عدد الفئات</span><div class="seg" id="seg-cols" role="group" aria-labelledby="l-cols"></div></div>
         <div class="field"><span class="lbl" id="l-time">وقت الإجابة</span><div class="seg" id="seg-time" role="group" aria-labelledby="l-time"></div></div>
         <label class="switch" for="opt-deduct"><input type="checkbox" id="opt-deduct"><span>الإجابة الخاطئة تخصم النقاط</span></label>
-        <label class="switch" for="opt-phones" id="opt-phones-row"><input type="checkbox" id="opt-phones"><span>كل فريق يضغط زرار من الموبايل، وأول فريق يضغط يجاوب</span></label>
+        <label class="switch" for="opt-phones" id="opt-phones-row"><input type="checkbox" id="opt-phones"><span>اللاعبين يدخلوا من موبايلاتهم وتظهر لهم اللوحة، والفريق اللي عليه الدور يختار السؤال</span></label>
+        <label class="switch sub-switch" for="opt-buzz" id="opt-buzz-row"><input type="checkbox" id="opt-buzz"><span>زرار على الموبايل: أول فريق يضغط يجاوب</span></label>
         </div>
       </section>
 
@@ -699,7 +703,7 @@ function qWord(n){ return n === 1 ? "سؤال واحد" : n === 2 ? "سؤالا�
 function defaults(){
   return {
     teams:[{id:"t1",name:ORD[0],color:COLORS[0]},{id:"t2",name:ORD[1],color:COLORS[1]}],
-    settings:{cols:5,time:30,deduct:false,sound:true},
+    settings:{cols:5,time:30,deduct:false,sound:true,buzz:true},
     picks:[],
     game:null,
     recent:[],
@@ -919,6 +923,8 @@ function renderSetupInner(){
   $("opt-deduct").checked = !!st.deduct;
   $("opt-phones").checked = !!st.phones;
   $("opt-phones-row").hidden = !RACE_OK;
+  $("opt-buzz").checked = st.buzz !== false;
+  $("opt-buzz-row").hidden = !RACE_OK || !st.phones;
 
   const full = state.picks.length >= cols;
   catsEl.replaceChildren(...BANK.map(c => {
@@ -1043,6 +1049,7 @@ function renderBoard(){
 }
 function renderScores(){
   const g = state.game; if (!g) return;
+  if (bRoom) bPush();
   scoresEl.replaceChildren(...state.teams.map((t,i) => h("div",{class:"score" + (g.turn === i ? " is-turn" : ""),style:"--tc:" + t.color},
     h("button",{class:"nm",type:"button",title:"اجعلوا الدور لهذا الفريق",onclick:() => { g.turn = i; save(); renderScores(); renderTurn(); }},
       h("span",{class:"dot","aria-hidden":"true"}), tname(t,i)),
@@ -1056,7 +1063,7 @@ function renderTurn(){
   const g = state.game; if (!g) return;
   if (g.turn >= state.teams.length || g.turn < 0) g.turn = 0;
   const t = state.teams[g.turn];
-  turnEl.replaceChildren(h("span",{class:"dot",style:"--tc:" + t.color,"aria-hidden":"true"}), "الدور على ", h("b",{style:"--tc:" + t.color}, tname(t,g.turn)), " ليختار سؤالًا");
+  turnEl.replaceChildren(h("span",{class:"dot",style:"--tc:" + t.color,"aria-hidden":"true"}), "الدور على ", h("b",{style:"--tc:" + t.color}, tname(t,g.turn)), " ليختار سؤالًا" + (bRoom ? " من الموبايل أو من هنا" : ""));
 }
 function adjust(id, d){ const g = state.game; g.scores[id] = (g.scores[id] || 0) + d; save(); renderScores(); }
 
@@ -1106,7 +1113,7 @@ function openQ(ci, ri){
   $("q-answer").hidden = true; $("q-pre").hidden = false; $("q-post").hidden = true;
   qover.hidden = false;
   startTimer();
-  if (bRoom){ bPhase = "buzz"; bPush(true); }
+  if (bRoom){ bPhase = buzzOn() ? "buzz" : "open"; bPush(true); }
   renderBuzz();
   if (dd) beep(988, .18, .12);
   $("q-reveal").focus();
@@ -1119,7 +1126,7 @@ function swapQ(){
   g.cats[cur.ci].cells[cur.ri] = alt.id;
   cur.swapped = true;
   save(); fillQuestion(); startTimer();
-  if (bRoom){ cur.buzz = null; cur.out.clear(); cur.round = (cur.round || 0) + 1; bPhase = "buzz"; bPush(true); }
+  if (bRoom){ cur.buzz = null; cur.out.clear(); cur.round = (cur.round || 0) + 1; bPhase = buzzOn() ? "buzz" : "open"; bPush(true); }
   renderBuzz();
 }
 function startTimer(){
@@ -1625,11 +1632,14 @@ function confirmTap(btn, label, fn){
   setTimeout(() => { if (btn.dataset.armed === "1"){ btn.dataset.armed = ""; btn.textContent = label; } }, 3000);
 }
 
-/* ===== phone buzzers for the board =====
-   Same live room as the speed race. Each player joins from their phone and picks a team; while a question
-   is open, the first team to press its button answers. The screen stays the referee and judges as before. */
+/* ===== phones for the board =====
+   Same live room as the speed race. Each player joins from their phone and picks a team once (the host can
+   move a player by tapping their name in the room). Phones see the board, and the team whose turn it is picks
+   the next question from a phone. With the buzzer on, the first team to press answers. The screen stays the
+   referee and judges as before. */
 let bRoom = null, bConn = "", bSeq = 0, bSendT = 0, bPulse = 0, bPhase = "lobby", bLast = null;
 const phonesOn = () => RACE_OK && !!state.settings.phones;
+const buzzOn = () => state.settings.buzz !== false;
 function teamOf(id){ const i = state.teams.findIndex(t => t.id === id); return i < 0 ? null : {t:state.teams[i], i}; }
 function drawJoin(code){
   $("r-code").textContent = code;
@@ -1669,8 +1679,14 @@ function bPublic(){
   const R = state.broom, g = state.game;
   const s = {v:1, hs:HS, seq:++bSeq, rid:R ? R.rid : "", kind:"board", phase:bPhase,
     teams:state.teams.map((t,i) => ({id:t.id, name:tname(t,i), color:t.color, score:g ? (g.scores[t.id] || 0) : 0})),
-    players:R ? Object.entries(R.players).map(([id,p]) => ({id, name:p.name, team:p.team || null})) : [], last:bLast};
-  if (cur && g && (bPhase === "buzz" || bPhase === "locked" || bPhase === "reveal")){
+    players:R ? Object.entries(R.players).map(([id,p]) => ({id, name:p.name, team:p.team || null})) : [], last:bLast, buzz:buzzOn()};
+  if (g){
+    // the board as phones see it: "" open, "x" no question, "-" nobody answered, or the id of the team that won it
+    s.turn = state.teams[g.turn] ? state.teams[g.turn].id : null;
+    s.board = {gid:g.gid.slice(0, 8), cats:g.cats.map(c => c.name), vals:VALUES,
+      cells:g.cats.map((c,ci) => VALUES.map((v,ri) => { const u = g.used[ci + "-" + ri]; return !c.cells[ri] ? "x" : u ? (u.by || "-") : ""; }))};
+  }
+  if (cur && g && (bPhase === "buzz" || bPhase === "open" || bPhase === "locked" || bPhase === "reveal")){
     const rec = BY_ID[g.cats[cur.ci].cells[cur.ri]];
     s.q = {key:bKey(), cat:g.cats[cur.ci].name, val:cur.value, text:rec.q.q, out:[...cur.out], buzz:cur.buzz || null};
     if (bPhase === "reveal") s.q.answer = rec.q.a;
@@ -1694,13 +1710,25 @@ function onBoardPhone(ev, p){
     seen[p.pid] = Date.now();
     const pl = R.players[p.pid];
     if (!pl){ if (Object.keys(R.players).length >= 40) return; R.players[p.pid] = {name, team}; save(); beep(1046, .08, .08); }
-    else if (pl.name !== name || pl.team !== team){ pl.name = name; pl.team = team; save(); }
+    else if (pl.name !== name || (!pl.team && team)){ pl.name = name; if (!pl.team) pl.team = team; save(); }
     else if (!fresh) return;
     renderBoardLobby(); renderRoomChip(); bPush();
     return;
   }
+  if (ev === "pick"){
+    const g = state.game;
+    if (!g || cur || bPhase !== "idle" || scrBoard.hidden || !qover.hidden || !endover.hidden) return;
+    const pl = R.players[p.pid];
+    if (!pl || !state.teams[g.turn] || pl.team !== state.teams[g.turn].id) return;
+    if (p.gid !== g.gid.slice(0, 8) || typeof p.cell !== "string" || !/^\d{1,2}-[0-4]$/.test(p.cell)) return;
+    const [ci, ri] = p.cell.split("-").map(Number);
+    if (!g.cats[ci] || !g.cats[ci].cells[ri] || g.used[p.cell]) return;
+    seen[p.pid] = Date.now();
+    openQ(ci, ri);
+    return;
+  }
   if (ev === "buzz"){
-    if (bPhase !== "buzz" || !cur || cur.revealed || p.key !== bKey()) return;
+    if (!buzzOn() || bPhase !== "buzz" || !cur || cur.revealed || p.key !== bKey()) return;
     const pl = R.players[p.pid];
     if (!pl || !pl.team || !teamOf(pl.team) || cur.out.has(pl.team)) return;
     seen[p.pid] = Date.now();
@@ -1722,7 +1750,7 @@ function reopenBuzzers(){
 }
 function renderBuzz(){
   const box = $("q-buzz");
-  if (!bRoom || !cur){ box.hidden = true; return; }
+  if (!bRoom || !cur || !buzzOn()){ box.hidden = true; return; }
   box.hidden = false;
   const txt = $("q-buzz-text"), b = cur.buzz;
   if (b){
@@ -1740,18 +1768,26 @@ function renderBuzz(){
 function renderBoardLobby(){
   const R = state.broom; if (!R || state.mode !== "board" || scrLobby.hidden) return;
   drawJoin(R.code);
-  $("r-plan").textContent = "كل واحد يدخل باسمه ويختار فريقه. لما السؤال يظهر، أول فريق يضغط الزرار على الموبايل يجاوب.";
+  $("r-plan").textContent = "كل واحد يدخل باسمه ويختار فريقه، واللوحة تظهر على موبايله. الفريق اللي عليه الدور يختار السؤال من الموبايل." +
+    (buzzOn() ? " ولما السؤال يظهر، أول فريق يضغط الزرار يجاوب." : "") + " لو حد اختار فريق غلط، اضغطوا على اسمه هنا لنقله.";
   const now = Date.now(), list = Object.entries(R.players);
   $("r-players").replaceChildren(...list.map(([id,p]) => {
     const tm = teamOf(p.team);
     return h("li",{class:now - (seen[id] || 0) < 12000 ? null : "off",style:tm ? "--tc:" + tm.t.color : null},
-      tm ? h("span",{class:"dot","aria-hidden":"true"}) : null, p.name,
-      h("span",{class:"tm"}, tm ? tname(tm.t, tm.i) : "لسه ما اختارش فريق"));
+      h("button",{class:"mv",type:"button","aria-label":p.name + "، " + (tm ? tname(tm.t, tm.i) : "بدون فريق") + ". اضغطوا لنقله إلى فريق آخر",onclick:() => movePlayer(id)},
+        tm ? h("span",{class:"dot","aria-hidden":"true"}) : null, p.name,
+        h("span",{class:"tm"}, tm ? tname(tm.t, tm.i) : "لسه ما اختارش فريق")));
   }));
   $("r-pcount").textContent = fmt(list.length);
   $("r-start").textContent = state.game && Object.keys(state.game.used).length ? "ارجعوا إلى اللوحة" : "ابدأوا اللعب";
   setMsg($("r-msg"), "");
   renderConn();
+}
+function movePlayer(id){
+  const R = state.broom, pl = R && R.players[id]; if (!pl || !state.teams.length) return;
+  const i = state.teams.findIndex(t => t.id === pl.team);
+  pl.team = state.teams[(i + 1) % state.teams.length].id;
+  save(); renderBoardLobby(); renderRoomChip(); bPush(true);
 }
 function renderRoomChip(){
   const b = $("b-room"), R = state.broom;
@@ -2025,7 +2061,8 @@ function bind(){
     if (phonesOn()){ openBoardRoom(); bPhase = "idle"; bPush(true); }
     renderBoard(); show("board"); renderRoomChip();
   });
-  $("opt-phones").addEventListener("change", e => { state.settings.phones = e.target.checked; if (!state.settings.phones && state.broom) closeBoardRoom(); save(); });
+  $("opt-phones").addEventListener("change", e => { state.settings.phones = e.target.checked; if (!state.settings.phones && state.broom) closeBoardRoom(); save(); renderSetup(); });
+  $("opt-buzz").addEventListener("change", e => { state.settings.buzz = e.target.checked; save(); bPush(true); });
   $("b-room").addEventListener("click", showBoardLobby);
   $("q-rebuzz").addEventListener("click", reopenBuzzers);
   document.querySelectorAll("#modes [data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));

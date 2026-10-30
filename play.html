@@ -107,6 +107,19 @@ input:focus{outline:none;border-color:var(--brass)}
 .buzzbtn:active{transform:translateY(6px);box-shadow:0 2px 0 rgba(0,0,0,.32),inset 0 0 0 8px rgba(255,255,255,.22)}
 .buzzbtn:disabled{opacity:.6;transform:translateY(6px);box-shadow:0 2px 0 rgba(0,0,0,.32);cursor:default}
 .rank li .dot{width:12px;height:12px;border-radius:50%;background:var(--tc);flex:none}
+.turnline{margin:0;text-align:center;font-size:1.15rem;font-weight:600;padding:10px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.turnline.mine{background:var(--brass);color:var(--brass-ink);border-color:var(--brass)}
+.pboard{display:flex;flex-direction:column;gap:7px}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) repeat(5,minmax(38px,50px));gap:5px;align-items:stretch}
+.pc{display:flex;align-items:center;font-weight:600;font-size:.95rem;line-height:1.3;overflow-wrap:anywhere;padding-inline-end:4px}
+.pv{min-height:44px;border-radius:10px;border:1px solid var(--line-strong);background:transparent;color:var(--cream);font-family:var(--f-display);font-size:1.15rem;line-height:1;display:grid;place-items:center;padding:0;font-variant-numeric:tabular-nums}
+button.pv:not(:disabled){background:var(--brass);color:var(--brass-ink);border-color:var(--brass);cursor:pointer;box-shadow:0 2px 0 var(--brass-deep)}
+button.pv:not(:disabled):active{transform:translateY(2px);box-shadow:none}
+button.pv:disabled{opacity:.75}
+button.pv.sent{background:var(--cream);color:var(--night);opacity:1}
+.pv.used{border-style:dashed;color:var(--muted);text-decoration:line-through;opacity:.6;position:relative}
+.pv.used[style]::after{content:"";position:absolute;inset-block-start:4px;inset-inline-start:4px;width:7px;height:7px;border-radius:50%;background:var(--tc)}
+.pv.none{border:0}
 .center-t{text-align:center}
 .brand-foot{margin:0;color:var(--muted);font-size:.8rem;text-align:center}
 .brand-foot:empty{display:none}
@@ -148,8 +161,7 @@ input:focus{outline:none;border-color:var(--brass)}
         <h2 id="w-title"></h2>
         <p class="sub" id="w-sub"></p>
         <ol class="rank" id="w-scores" hidden></ol>
-        <button class="ghost" id="w-team" type="button" hidden>غيّر فريقك</button>
-        <button class="ghost" id="w-leave" type="button" hidden>غيّر الغرفة أو الاسم</button>
+        <button class="ghost" id="w-leave" type="button" hidden>اكتب رقم الغرفة تاني</button>
       </div>
     </section>
 
@@ -159,6 +171,15 @@ input:focus{outline:none;border-color:var(--brass)}
         <h2>اختار فريقك</h2>
         <div class="team-pick" id="t-pick"></div>
       </div>
+    </section>
+
+    <!-- board: the categories, the team whose turn it is picks -->
+    <section class="view" id="v-board" hidden>
+      <p class="sub center-t" id="g-last"></p>
+      <p class="turnline" id="g-turn"></p>
+      <div class="pboard" id="g-board"></div>
+      <p class="sub center-t" id="g-note"></p>
+      <ol class="rank" id="g-scores"></ol>
     </section>
 
     <!-- board: buzzer -->
@@ -320,12 +341,12 @@ const fmt = n => nf.format(n);
 const fmtS = n => new Intl.NumberFormat("ar-EG",{signDisplay:"always"}).format(n);
 const SHAPES = ["▲","◆","●","■"];
 const LS = BRAND.storageKey + ":race-phone";
-const VIEWS = ["v-join","v-wait","v-team","v-buzz","v-q","v-sent","v-res","v-final","v-closed"];
+const VIEWS = ["v-join","v-wait","v-team","v-board","v-buzz","v-q","v-sent","v-res","v-final","v-closed"];
 
 let saved = load();
 let me = {code:"", name:"", pid:""};
 let room = null, pulse = 0, tick = 0, lost = 0;
-let last = null, hs = null, seq = -1, everOpen = false, picking = false, buzzedKey = "";
+let last = null, hs = null, seq = -1, everOpen = false, buzzedKey = "", pickSent = null, pickT = 0;
 const shownAt = {}, deadline = {};
 
 function load(){ try { const o = JSON.parse(localStorage.getItem(LS)); return o && typeof o === "object" ? o : {}; } catch(e){ return {}; } }
@@ -383,7 +404,7 @@ function join(code, name){
   saved.code = code; saved.name = name; saved.pid = pid; persist();
   me = {code, name, pid};
   if (location.hash.slice(1) !== code){ try { history.replaceState(null, "", "#" + code); } catch(e){} }
-  last = null; hs = null; seq = -1; everOpen = false; picking = false; buzzedKey = "";
+  last = null; hs = null; seq = -1; everOpen = false; buzzedKey = ""; pickSent = null;
   $("me").hidden = false; $("me").replaceChildren("أنت: ", h("b", null, name));
   waitView("…", "جارٍ الدخول إلى الغرفة " + fmt(Number(code)) + "…", "");
   room = liveRoom({topic: topicFor(code), onMessage, onStatus});
@@ -423,7 +444,7 @@ function myRank(){
 function waitView(ico, title, sub, canLeave){
   view("v-wait");
   $("w-ico").textContent = ico; $("w-title").textContent = title; $("w-sub").textContent = sub || "";
-  $("w-leave").hidden = !canLeave; $("w-scores").hidden = true; $("w-team").hidden = true;
+  $("w-leave").hidden = !canLeave; $("w-scores").hidden = true;
 }
 function render(){
   const p = last; if (!p) return;
@@ -435,7 +456,7 @@ function render(){
     const ps = players(), inRoom = ps.some(x => x.id === me.pid);
     const others = ps.length - (inRoom ? 1 : 0);
     waitView(inRoom ? "✓" : "…", inRoom ? "أنت في الغرفة" : "جارٍ تسجيل اسمك…",
-      (others > 0 ? "معك في الغرفة " + (others === 1 ? "لاعب واحد" : others === 2 ? "لاعبان" : fmt(others) + " لاعبين") + ". " : "") + "انتظر حتى يبدأ السباق على الشاشة.", true);
+      (others > 0 ? "معك في الغرفة " + (others === 1 ? "لاعب واحد" : others === 2 ? "لاعبان" : fmt(others) + " لاعبين") + ". " : "") + "انتظر حتى يبدأ السباق على الشاشة.");
     return;
   }
   if (p.phase === "question" && q){
@@ -520,21 +541,24 @@ function finalView(){
 function bTeams(){ return Array.isArray(last && last.teams) ? last.teams : []; }
 function myTeam(){
   const ok = id => !!id && bTeams().some(t => t.id === id);
-  if (saved.teamCode === me.code && ok(saved.team)) return saved.team;
   const mine = players().find(x => x.id === me.pid);
-  return mine && ok(mine.team) ? mine.team : null;
+  if (mine && ok(mine.team)){
+    if (saved.team !== mine.team || saved.teamCode !== me.code){ saved.team = mine.team; saved.teamCode = me.code; persist(); }
+    return mine.team;
+  }
+  return (saved.teamCode === me.code && ok(saved.team)) ? saved.team : null;
 }
 function teamName(id){ const t = bTeams().find(x => x.id === id); return t ? t.name : ""; }
 function teamColor(id){ const t = bTeams().find(x => x.id === id); return t ? t.color : null; }
-function scoresList(tid){
+function scoresList(tid, at){
   const teams = bTeams().slice().sort((a,b) => (b.score || 0) - (a.score || 0));
-  const el = $("w-scores"); el.hidden = !teams.length;
+  const el = $(at || "w-scores"); el.hidden = !teams.length;
   el.replaceChildren(...teams.map(t => h("li",{class:t.id === tid ? "mine" : null,style:"--tc:" + t.color},
     h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), h("span",{class:"p"}, fmt(t.score || 0)))));
 }
 function boardRender(p){
   $("tag").textContent = "لوحة الفئات";
-  const tid = picking ? null : myTeam();
+  const tid = myTeam();
   if (!tid){ teamView(); return; }
   $("me").hidden = false;
   $("me").replaceChildren("أنت: ", h("b", null, me.name), " · ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
@@ -547,25 +571,58 @@ function boardRender(p){
     else waitView("✋", b.name + " من " + teamName(b.team) + " ضغط الأول", "لو إجابته غلط، الأزرار هتفتح تاني.");
     return;
   }
-  if (q && p.phase === "buzz"){
-    if (Array.isArray(q.out) && q.out.includes(tid)){ waitView("✗", "فريقك خرج من السؤال ده", "استنوا الفرق التانية."); return; }
-    buzzView(q, tid); return;
+  if (q && (p.phase === "buzz" || p.phase === "open")){
+    if (p.phase === "buzz" && Array.isArray(q.out) && q.out.includes(tid)){ waitView("✗", "فريقك خرج من السؤال ده", "استنوا الفرق التانية."); return; }
+    buzzView(q, tid, p.phase === "buzz"); return;
   }
   if (p.phase === "final"){ boardFinal(tid); return; }
-  const l = p.last;
-  let sub = p.phase === "lobby" ? "استنوا لحد ما اللعب يبدأ على الشاشة." : "استنوا السؤال الجاي على الشاشة.";
-  if (p.phase === "idle" && l) sub = (l.team ? teamName(l.team) + " كسب " + fmt(l.pts || 0) + " نقطة. " : "محدش جاوب السؤال اللي فات. ") + sub;
-  waitView("✓", "إنت في " + teamName(tid), sub, true);
-  $("w-team").hidden = false;
+  if (p.phase === "idle" && p.board){ boardView(p, tid); return; }
+  waitView("✓", "إنت في " + teamName(tid), "استنوا لحد ما اللعب يبدأ على الشاشة.");
   scoresList(tid);
+}
+function boardView(p, tid){
+  view("v-board");
+  const B = p.board, myTurn = p.turn === tid, l = p.last;
+  if (pickSent && (pickSent.gid !== B.gid || Date.now() - pickSent.at > 4000)) pickSent = null;
+  $("g-last").textContent = l ? (l.team ? teamName(l.team) + " كسب " + fmt(l.pts || 0) + " نقطة." : "محدش جاوب السؤال اللي فات.") : "";
+  const tl = $("g-turn");
+  tl.classList.toggle("mine", myTurn);
+  tl.replaceChildren(...(myTurn ? ["الدور عليكم! اختاروا سؤال"] : ["الدور على ", h("b",{style:"color:" + (teamColor(p.turn) || "inherit")}, teamName(p.turn)), " يختار"]));
+  $("g-board").replaceChildren(...B.cats.map((name, ci) => h("div",{class:"prow"},
+    h("span",{class:"pc"}, name),
+    ...B.vals.map((v, ri) => {
+      const st = (B.cells[ci] || [])[ri], key = ci + "-" + ri;
+      if (st === "x") return h("span",{class:"pv none","aria-hidden":"true"});
+      if (st) return h("span",{class:"pv used",style:st !== "-" && teamColor(st) ? "--tc:" + teamColor(st) : null,"aria-label":name + "، " + fmt(v) + "، اتلعب"}, fmt(v));
+      const sent = pickSent && pickSent.cell === key;
+      return h("button",{class:"pv" + (sent ? " sent" : ""),type:"button",disabled:(!myTurn || pickSent) ? true : null,"aria-label":name + "، " + fmt(v) + " نقطة",onclick:() => pick(key, B.gid)}, fmt(v));
+    }))));
+  $("g-note").textContent = myTurn ? (pickSent ? "جارٍ فتح السؤال على الشاشة…" : "السؤال اللي تختاروه هيظهر على الشاشة.") : "استنوا لحد ما يختاروا سؤال.";
+  scoresList(tid, "g-scores");
+}
+function pick(cell, gid){
+  if (!room || pickSent) return;
+  pickSent = {cell, gid, at:Date.now()};
+  room.send("pick", {pid:me.pid, cell, gid});
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch(e){}
+  render();
+  clearTimeout(pickT); pickT = setTimeout(render, 4100);
 }
 function teamView(){
   view("v-team");
   $("t-pick").replaceChildren(...bTeams().map(t => h("button",{class:"tp",type:"button",style:"--tc:" + t.color,onclick:() => pickTeam(t.id)}, t.name)));
 }
-function pickTeam(id){ picking = false; saved.team = id; saved.teamCode = me.code; persist(); hello(); render(); }
-function buzzView(q, tid){
+function pickTeam(id){ saved.team = id; saved.teamCode = me.code; persist(); hello(); render(); }
+function buzzView(q, tid, withButton){
   view("v-buzz");
+  pickSent = null;
+  $("b-btn").hidden = !withButton;
+  if (!withButton){
+    $("b-cat").textContent = q.cat || ""; $("b-val").textContent = fmt(q.val || 0) + " نقطة";
+    $("b-text").textContent = q.text || "";
+    $("b-note").textContent = "جاوبوا بصوت عالي، والحكم على الشاشة.";
+    return;
+  }
   $("b-cat").textContent = q.cat || ""; $("b-val").textContent = fmt(q.val || 0) + " نقطة";
   $("b-text").textContent = q.text || "";
   const btn = $("b-btn"), sent = buzzedKey === q.key;
@@ -579,7 +636,7 @@ function doBuzz(e){
   buzzedKey = p.q.key;
   room.send("buzz", {pid:me.pid, key:p.q.key});
   try { if (navigator.vibrate) navigator.vibrate(40); } catch(err){}
-  buzzView(p.q, myTeam());
+  buzzView(p.q, myTeam(), true);
 }
 function boardFinal(tid){
   view("v-final"); $("f-sub").textContent = "انتهت اللوحة";
@@ -602,7 +659,6 @@ document.addEventListener("visibilitychange", () => {
 $("join-form").addEventListener("submit", submitJoin);
 $("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 4 && !$("in-name").value) $("in-name").focus(); });
 $("w-leave").addEventListener("click", () => showJoin());
-$("w-team").addEventListener("click", () => { picking = true; render(); });
 $("b-btn").addEventListener("pointerdown", doBuzz);
 $("b-btn").addEventListener("click", doBuzz);
 $("c-again").addEventListener("click", () => { saved.code = ""; persist(); try { history.replaceState(null, "", location.pathname); } catch(e){} showJoin(); });
