@@ -113,6 +113,14 @@ input:focus{outline:none;border-color:var(--brass)}
 .turnline{margin:0;text-align:center;font-size:1.15rem;font-weight:600;padding:10px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
 .turnline.mine{background:var(--brass);color:var(--brass-ink);border-color:var(--brass)}
 .pboard{display:flex;flex-direction:column;gap:7px}
+.phelps{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px}
+.help{font:inherit;font-weight:700;font-size:1rem;line-height:1.25;min-height:44px;padding:8px 18px;border-radius:999px;border:1.5px solid var(--brass);background:transparent;color:var(--brass);cursor:pointer}
+.help.on,.help[aria-pressed="true"]{background:var(--brass);color:var(--brass-ink)}
+.help.tgt{border-color:var(--tc);color:var(--tc)}
+.help.tgt.on{background:var(--tc);color:var(--team-ink)}
+.help:disabled{opacity:.6;cursor:default}
+.help-for{color:var(--muted)}
+#w-two,#b-two{align-self:center}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) repeat(5,minmax(38px,50px));gap:5px;align-items:stretch}
 .pc{display:flex;align-items:center;font-weight:600;font-size:.95rem;line-height:1.3;overflow-wrap:anywhere;padding-inline-end:4px}
 .pv{min-height:44px;border-radius:10px;border:1px solid var(--line-strong);background:transparent;color:var(--cream);font-family:var(--f-display);font-size:1.15rem;line-height:1;display:grid;place-items:center;padding:0;font-variant-numeric:tabular-nums}
@@ -205,7 +213,7 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.18)}
 
 /* scores: chalk on a slate in a wooden frame, with tally marks */
 .scores{gap:0;background:var(--slate);border:9px solid var(--wood);border-radius:6px;box-shadow:0 8px 0 rgba(0,0,0,.25)}
-.score{background:transparent;border:0;border-radius:0;padding:12px 24px;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"nm nm . adj" "pts tally . adj";align-items:center;column-gap:18px}
+.score{background:transparent;border:0;border-radius:0;padding:12px 24px;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"nm nm . adj" "pts tally . adj" "hl hl hl adj";align-items:center;column-gap:18px}
 .score + .score{border-inline-start:2px dashed rgba(237,237,230,.22)}
 .score.is-turn{box-shadow:none;border-color:rgba(237,237,230,.22)}
 .score.is-turn .nm{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:7px}
@@ -275,6 +283,14 @@ button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;op
 .lockform input:focus-visible{outline:0;border-bottom:2px solid var(--brass)}
 .lockmsg{color:var(--brass)}
 
+/* helps: amber tags like the turn tag; the help line on a question is one too, and the helps left are chalked on the slate */
+.help{border-radius:6px}
+.help.on,.help[aria-pressed="true"]{box-shadow:0 3px 0 rgba(0,0,0,.25)}
+.help.tgt.on{color:var(--team-ink)}
+.qhelp{background:var(--brass);color:var(--brass-ink);border-radius:6px;padding:6px 18px 7px;box-shadow:0 3px 0 rgba(0,0,0,.25)}
+.score .hl{grid-area:hl}
+.score .hl span{border:1px dashed rgba(237,237,230,.35);border-radius:4px;color:var(--chalk)}
+
 </style>
 </head>
 <body>
@@ -308,6 +324,7 @@ button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;op
         <p class="big-ico" id="w-ico" aria-hidden="true">✓</p>
         <h2 id="w-title"></h2>
         <p class="sub" id="w-sub"></p>
+        <button class="help" id="w-two" type="button" hidden>جاوب جوابين</button>
         <ol class="rank" id="w-scores" hidden></ol>
         <button class="ghost" id="w-leave" type="button" hidden>اكتب رقم الغرفة تاني</button>
       </div>
@@ -325,6 +342,7 @@ button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;op
     <section class="view" id="v-board" hidden>
       <p class="sub center-t" id="g-last"></p>
       <p class="turnline" id="g-turn"></p>
+      <div class="phelps" id="g-helps" role="group" aria-label="وسائل المساعدة" hidden></div>
       <div class="pboard" id="g-board"></div>
       <p class="sub center-t" id="g-note"></p>
       <ol class="rank" id="g-scores"></ol>
@@ -334,6 +352,7 @@ button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;op
     <section class="view" id="v-buzz" hidden>
       <div class="qmeta"><span id="b-val"></span><b id="b-cat"></b></div>
       <p class="qtext" id="b-text"></p>
+      <button class="help" id="b-two" type="button" hidden>جاوب جوابين</button>
       <button class="buzzbtn" id="b-btn" type="button">اضغط!</button>
       <p class="sub center-t" id="b-note"></p>
     </section>
@@ -494,7 +513,7 @@ const VIEWS = ["v-join","v-wait","v-team","v-board","v-buzz","v-q","v-sent","v-r
 let saved = load();
 let me = {code:"", name:"", pid:""};
 let room = null, pulse = 0, tick = 0, lost = 0;
-let last = null, hs = null, seq = -1, everOpen = false, buzzedKey = "", pickSent = null, pickT = 0;
+let last = null, hs = null, seq = -1, everOpen = false, buzzedKey = "", pickSent = null, pickT = 0, helpSent = null, helpT = 0;
 const shownAt = {}, deadline = {};
 
 function load(){ try { const o = JSON.parse(localStorage.getItem(LS)); return o && typeof o === "object" ? o : {}; } catch(e){ return {}; } }
@@ -610,7 +629,7 @@ function myRank(){
 function waitView(ico, title, sub, canLeave){
   view("v-wait");
   setIco($("w-ico"), ico); $("w-title").textContent = title; $("w-sub").textContent = sub || "";
-  $("w-leave").hidden = !canLeave; $("w-scores").hidden = true;
+  $("w-leave").hidden = !canLeave; $("w-scores").hidden = true; $("w-two").hidden = true;
 }
 function render(){
   const p = last; if (!p) return;
@@ -732,10 +751,13 @@ function boardRender(p){
   const q = p.q || null;
   if (q && p.phase === "reveal"){ waitView("ok", "الإجابة: " + (q.answer || ""), "استنوا الحكم على الشاشة."); scoresList(tid); return; }
   if (q && p.phase === "locked" && q.buzz){
-    const b = q.buzz;
-    if (b.pid === me.pid) waitView("bell", "إنت أول واحد ضغط!", "جاوب بصوت عالي.");
-    else if (b.team === tid) waitView("bell", b.name + " من فريقك ضغط الأول", "ساعدوه في الإجابة.");
-    else waitView("bell", b.name + " من " + teamName(b.team) + " ضغط الأول", "لو إجابته غلط، الأزرار هتفتح تاني.");
+    const b = q.buzz, two = q.two === b.team ? (q.twoSpent ? " دي المحاولة التانية." : " بيجاوبوا جوابين.") : "";
+    if (b.auto && b.team === tid) waitView("bell", q.forT ? "السؤال ده لفريقكم" : "لعبتوا دبل، الإجابة ليكم", (q.forT ? "اختاره ليكم " + teamName(q.forT.by) + ". " : "") + "جاوبوا بصوت عالي." + two);
+    else if (b.auto) waitView("bell", teamName(b.team) + " بيجاوب", (q.forT ? "اختاره ليهم " + teamName(q.forT.by) + "." : "لعبوا دبل.") + " لو إجابتهم غلط، الأزرار هتفتح ليكم." + two);
+    else if (b.pid === me.pid) waitView("bell", "إنت أول واحد ضغط!", "جاوب بصوت عالي." + two);
+    else if (b.team === tid) waitView("bell", b.name + " من فريقك ضغط الأول", "ساعدوه في الإجابة." + two);
+    else waitView("bell", b.name + " من " + teamName(b.team) + " ضغط الأول", "لو إجابته غلط، الأزرار هتفتح تاني." + two);
+    twoBtn($("w-two"), q, tid);
     return;
   }
   if (q && (p.phase === "buzz" || p.phase === "open")){
@@ -754,7 +776,12 @@ function boardView(p, tid){
   $("g-last").textContent = l ? (l.team ? teamName(l.team) + " كسب " + fmt(l.pts || 0) + " نقطة." : "محدش جاوب السؤال اللي فات.") : "";
   const tl = $("g-turn");
   tl.classList.toggle("mine", myTurn);
-  tl.replaceChildren(...(myTurn ? ["الدور عليكم! اختاروا سؤال"] : ["الدور على ", h("b",{style:"color:" + (teamColor(p.turn) || "inherit")}, teamName(p.turn)), " يختار"]));
+  const a = p.helps && p.armed && p.armed.team === p.turn ? p.armed : null;
+  const tb = id => h("b",{style:"color:" + (teamColor(id) || "inherit")}, teamName(id));
+  tl.replaceChildren(...(myTurn
+    ? (a && a.kind === "pick" ? ["اختاروا سؤال يجاوب عليه ", h("b", null, teamName(a.target))] : a && a.kind === "dbl" ? ["لعبتوا دبل! اختاروا سؤال"] : ["الدور عليكم! اختاروا سؤال"])
+    : (a && a.kind === "pick" ? [tb(p.turn), " بيختار سؤال يجاوب عليه ", a.target === tid ? "فريقكم" : tb(a.target)] : a && a.kind === "dbl" ? ["الدور على ", tb(p.turn), "، ولعب دبل"] : ["الدور على ", tb(p.turn), " يختار"])));
+  helpsRow(p, tid, myTurn, a);
   $("g-board").replaceChildren(...B.cats.map((name, ci) => h("div",{class:"prow"},
     h("span",{class:"pc"}, name),
     ...B.vals.map((v, ri) => {
@@ -766,6 +793,40 @@ function boardView(p, tid){
     }))));
   $("g-note").textContent = myTurn ? (pickSent ? "جارٍ فتح السؤال على الشاشة…" : "السؤال اللي تختاروه هيظهر على الشاشة.") : "استنوا لحد ما يختاروا سؤال.";
   scoresList(tid, "g-scores");
+}
+/* helps: the team whose turn it is can call دبل or اختار للخصم before picking; the team answering can call جاوب جوابين */
+function myHelps(tid){ const t = bTeams().find(x => x.id === tid); return t && Array.isArray(t.helps) ? t.helps : []; }
+function sendHelp(kind, extra){
+  if (!room) return;
+  helpSent = Object.assign({kind, at:Date.now()}, extra || {});
+  room.send("help", Object.assign({pid:me.pid, kind}, extra || {}));
+  try { if (navigator.vibrate) navigator.vibrate(20); } catch(e){}
+  render();
+  clearTimeout(helpT); helpT = setTimeout(() => { helpSent = null; render(); }, 2500);
+}
+function helpsRow(p, tid, myTurn, a){
+  const box = $("g-helps"), mine = myHelps(tid).filter(k => k === "dbl" || k === "pick");
+  if (!p.helps || !myTurn || !mine.length){ box.hidden = true; box.replaceChildren(); return; }
+  const kids = mine.map(k => {
+    const on = !!a && a.kind === k;
+    return h("button",{class:"help" + (on ? " on" : ""),type:"button","aria-pressed":String(on),disabled:pickSent ? true : null,onclick:() => sendHelp(on ? "none" : k)}, k === "dbl" ? "دبل" : "اختار للخصم");
+  });
+  if (a && a.kind === "pick" && bTeams().length > 2){
+    kids.push(h("span",{class:"help-for"}, "لمين؟"));
+    bTeams().forEach(o => {
+      if (o.id === tid) return;
+      const on = a.target === o.id;
+      kids.push(h("button",{class:"help tgt" + (on ? " on" : ""),type:"button","aria-pressed":String(on),style:"--tc:" + o.color,onclick:() => sendHelp("pick", {target:o.id})}, o.name));
+    });
+  }
+  box.hidden = false; box.replaceChildren(...kids);
+}
+function twoBtn(el, q, tid){
+  const can = !!(last && last.helps && q && !q.two && q.ans === tid && myHelps(tid).includes("two"));
+  el.hidden = !can; if (!can) return;
+  const sent = !!helpSent && helpSent.kind === "two" && helpSent.key === q.key;
+  el.disabled = sent; el.textContent = sent ? "اتبعت…" : "جاوب جوابين";
+  el.onclick = () => sendHelp("two", {key:q.key});
 }
 function pick(cell, gid){
   if (!room || pickSent) return;
@@ -784,13 +845,18 @@ function buzzView(q, tid, withButton){
   view("v-buzz");
   pickSent = null;
   $("b-btn").hidden = !withButton;
+  twoBtn($("b-two"), q, tid);
+  const val = fmt((q.val || 0) * (q.dbl && q.dbl === tid ? 2 : 1)) + " نقطة";
   if (!withButton){
-    $("b-cat").textContent = q.cat || ""; $("b-val").textContent = fmt(q.val || 0) + " نقطة";
+    const help = q.forT ? (q.forT.to === tid ? "السؤال ده لفريقكم، اختاره " + teamName(q.forT.by) + ". " : teamName(q.forT.to) + " بيجاوب السؤال ده. ")
+      : q.dbl ? (q.dbl === tid ? "لعبتوا دبل: النقط ضعف ليكم. " : teamName(q.dbl) + " لعب دبل. ") : "";
+    const two = q.two ? (q.two === tid ? "بتجاوبوا جوابين. " : teamName(q.two) + " بيجاوب جوابين. ") : "";
+    $("b-cat").textContent = q.cat || ""; $("b-val").textContent = val;
     $("b-text").textContent = q.text || "";
-    $("b-note").textContent = "جاوبوا بصوت عالي، والحكم على الشاشة.";
+    $("b-note").textContent = help + two + "جاوبوا بصوت عالي، والحكم على الشاشة.";
     return;
   }
-  $("b-cat").textContent = q.cat || ""; $("b-val").textContent = fmt(q.val || 0) + " نقطة";
+  $("b-cat").textContent = q.cat || ""; $("b-val").textContent = val;
   $("b-text").textContent = q.text || "";
   const btn = $("b-btn"), sent = buzzedKey === q.key;
   btn.style.setProperty("--tc", teamColor(tid) || "var(--brass)");
