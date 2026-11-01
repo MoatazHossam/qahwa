@@ -363,7 +363,7 @@ button.pv.sent{background:var(--brass);color:var(--brass-ink);box-shadow:none;op
       <div class="qmeta"><span id="b-val"></span><b id="b-cat"></b></div>
       <p class="qtext" id="b-text"></p>
       <button class="help" id="b-two" type="button" hidden>جاوب جوابين</button>
-      <button class="buzzbtn" id="b-btn" type="button">اضغط!</button>
+      <button class="buzzbtn" id="b-btn" type="button" hidden>اسرق!</button>
       <p class="sub center-t" id="b-note"></p>
     </section>
 
@@ -814,20 +814,7 @@ function boardRender(p){
   $("me").replaceChildren(h("b", null, me.name), "، ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
   const q = p.q || null;
   if (q && p.phase === "reveal"){ waitView("ok", "الإجابة: " + (q.answer || ""), "استنوا الحكم على الشاشة."); scoresList(tid); return; }
-  if (q && p.phase === "locked" && q.buzz){
-    const b = q.buzz, two = q.two === b.team ? (q.twoSpent ? " دي المحاولة التانية." : " بيجاوبوا جوابين.") : "";
-    if (b.auto && b.team === tid) waitView("bell", q.forT ? "السؤال ده لفريقكم" : "لعبتوا دبل، الإجابة ليكم", (q.forT ? "اختاره ليكم " + teamName(q.forT.by) + ". " : "") + "جاوبوا بصوت عالي." + two);
-    else if (b.auto) waitView("bell", teamName(b.team) + " بيجاوب", (q.forT ? "اختاره ليهم " + teamName(q.forT.by) + "." : "لعبوا دبل.") + " لو إجابتهم غلط، الأزرار هتفتح ليكم." + two);
-    else if (b.pid === me.pid) waitView("bell", "إنت أول واحد ضغط!", "جاوب بصوت عالي." + two);
-    else if (b.team === tid) waitView("bell", b.name + " من فريقك ضغط الأول", "ساعدوه في الإجابة." + two);
-    else waitView("bell", b.name + " من " + teamName(b.team) + " ضغط الأول", "لو إجابته غلط، الأزرار هتفتح تاني." + two);
-    twoBtn($("w-two"), q, tid);
-    return;
-  }
-  if (q && (p.phase === "buzz" || p.phase === "open")){
-    if (p.phase === "buzz" && Array.isArray(q.out) && q.out.includes(tid)){ waitView("out", "فريقك خرج من السؤال ده", "استنوا الفرق التانية."); return; }
-    buzzView(q, tid, p.phase === "buzz"); return;
-  }
+  if (q && p.phase === "open"){ boardQView(q, tid); return; }
   if (p.phase === "final"){ boardFinal(tid); return; }
   if (p.phase === "idle" && p.board){ boardView(p, tid); return; }
   waitView("ok", "إنت في " + teamName(tid), "استنوا لحد ما اللعب يبدأ على الشاشة.");
@@ -837,14 +824,15 @@ function boardView(p, tid){
   view("v-board");
   const B = p.board, myTurn = p.turn === tid, l = p.last;
   if (pickSent && (pickSent.gid !== B.gid || Date.now() - pickSent.at > 4000)) pickSent = null;
-  $("g-last").textContent = l ? (l.team ? teamName(l.team) + " كسب " + fmt(l.pts || 0) + " نقطة." : "محدش جاوب السؤال اللي فات.") : "";
+  $("g-last").textContent = !l ? "" : l.team ? teamName(l.team) + " كسب " + fmt(l.pts || 0) + " نقطة."
+    : l.wrong ? teamName(l.wrong) + " جاوب غلط" + (l.pts ? " واتخصم منه " + fmt(l.pts) + " نقطة." : ".") : "السؤال اللي فات محدش جاوبه.";
   const tl = $("g-turn");
   tl.classList.toggle("mine", myTurn);
   const a = p.helps && p.armed && p.armed.team === p.turn ? p.armed : null;
   const tb = id => h("b",{style:"color:" + (teamColor(id) || "inherit")}, teamName(id));
   tl.replaceChildren(...(myTurn
-    ? (a && a.kind === "pick" ? ["اختاروا سؤال يجاوب عليه ", h("b", null, teamName(a.target))] : a && a.kind === "dbl" ? ["لعبتوا دبل! اختاروا سؤال"] : ["الدور عليكم! اختاروا سؤال"])
-    : (a && a.kind === "pick" ? [tb(p.turn), " بيختار سؤال يجاوب عليه ", a.target === tid ? "فريقكم" : tb(a.target)] : a && a.kind === "dbl" ? ["الدور على ", tb(p.turn), "، ولعب دبل"] : ["الدور على ", tb(p.turn), " يختار"])));
+    ? (a ? ["لعبتوا دبل! اختاروا سؤال"] : ["الدور عليكم! اختاروا سؤال"])
+    : (a ? ["الدور على ", tb(p.turn), "، ولعب دبل"] : ["الدور على ", tb(p.turn), " يختار"])));
   helpsRow(p, tid, myTurn, a);
   $("g-board").replaceChildren(...B.cats.map((name, ci) => h("div",{class:"prow"},
     h("span",{class:"pc"}, name),
@@ -858,37 +846,29 @@ function boardView(p, tid){
   $("g-note").textContent = myTurn ? (pickSent ? "جارٍ فتح السؤال على الشاشة…" : "السؤال اللي تختاروه هيظهر على الشاشة.") : "استنوا لحد ما يختاروا سؤال.";
   scoresList(tid, "g-scores");
 }
-/* helps: the team whose turn it is can call دبل or اختار للخصم before picking; the team answering can call جاوب جوابين */
+/* helps: the team whose turn it is can call دبل before picking; the team answering can call جاوب جوابين;
+   any other team can steal the question while it is on screen and the answer is not shown yet */
 function myHelps(tid){ const t = bTeams().find(x => x.id === tid); return t && Array.isArray(t.helps) ? t.helps : []; }
 function sendHelp(kind, extra){
   if (!room) return;
   helpSent = Object.assign({kind, at:Date.now()}, extra || {});
   room.send("help", Object.assign({pid:me.pid, kind}, extra || {}));
-  try { if (navigator.vibrate) navigator.vibrate(20); } catch(e){}
+  try { if (navigator.vibrate) navigator.vibrate(kind === "steal" ? 40 : 20); } catch(e){}
   render();
   clearTimeout(helpT); helpT = setTimeout(() => { helpSent = null; render(); }, 2500);
 }
 function helpsRow(p, tid, myTurn, a){
-  const box = $("g-helps"), mine = myHelps(tid).filter(k => k === "dbl" || k === "pick");
-  if (!p.helps || !myTurn || !mine.length){ box.hidden = true; box.replaceChildren(); return; }
-  const kids = mine.map(k => {
-    const on = !!a && a.kind === k;
-    return h("button",{class:"help" + (on ? " on" : ""),type:"button","aria-pressed":String(on),disabled:pickSent ? true : null,onclick:() => sendHelp(on ? "none" : k)}, k === "dbl" ? "دبل" : "اختار للخصم");
-  });
-  if (a && a.kind === "pick" && bTeams().length > 2){
-    kids.push(h("span",{class:"help-for"}, "لمين؟"));
-    bTeams().forEach(o => {
-      if (o.id === tid) return;
-      const on = a.target === o.id;
-      kids.push(h("button",{class:"help tgt" + (on ? " on" : ""),type:"button","aria-pressed":String(on),style:"--tc:" + o.color,onclick:() => sendHelp("pick", {target:o.id})}, o.name));
-    });
-  }
-  box.hidden = false; box.replaceChildren(...kids);
+  const box = $("g-helps");
+  if (!p.helps || !myTurn || !myHelps(tid).includes("dbl")){ box.hidden = true; box.replaceChildren(); return; }
+  const on = !!a;
+  box.hidden = false;
+  box.replaceChildren(h("button",{class:"help" + (on ? " on" : ""),type:"button","aria-pressed":String(on),disabled:pickSent ? true : null,onclick:() => sendHelp(on ? "none" : "dbl")}, "دبل"));
 }
+const sentFor = (kind, q) => !!helpSent && helpSent.kind === kind && helpSent.key === q.key;
 function twoBtn(el, q, tid){
-  const can = !!(last && last.helps && q && !q.two && q.ans === tid && myHelps(tid).includes("two"));
+  const can = !!(last && last.helps && q && !q.two && q.answerer === tid && myHelps(tid).includes("two"));
   el.hidden = !can; if (!can) return;
-  const sent = !!helpSent && helpSent.kind === "two" && helpSent.key === q.key;
+  const sent = sentFor("two", q);
   el.disabled = sent; el.textContent = sent ? "اتبعت…" : "جاوب جوابين";
   el.onclick = () => sendHelp("two", {key:q.key});
 }
@@ -905,35 +885,31 @@ function teamView(){
   $("t-pick").replaceChildren(...bTeams().map(t => h("button",{class:"tp",type:"button",style:"--tc:" + t.color,onclick:() => pickTeam(t.id)}, t.name)));
 }
 function pickTeam(id){ saved.team = id; saved.teamCode = me.code; persist(); hello(); render(); }
-function buzzView(q, tid, withButton){
+function boardQView(q, tid){
   view("v-buzz");
   pickSent = null;
-  $("b-btn").hidden = !withButton;
-  twoBtn($("b-two"), q, tid);
-  const val = fmt((q.val || 0) * (q.dbl && q.dbl === tid ? 2 : 1)) + " نقطة";
-  if (!withButton){
-    const help = q.forT ? (q.forT.to === tid ? "السؤال ده لفريقكم، اختاره " + teamName(q.forT.by) + ". " : teamName(q.forT.to) + " بيجاوب السؤال ده. ")
-      : q.dbl ? (q.dbl === tid ? "لعبتوا دبل: النقط ضعف ليكم. " : teamName(q.dbl) + " لعب دبل. ") : "";
-    const two = q.two ? (q.two === tid ? "بتجاوبوا جوابين. " : teamName(q.two) + " بيجاوب جوابين. ") : "";
-    $("b-cat").textContent = q.cat || ""; $("b-val").textContent = val;
-    $("b-text").textContent = q.text || "";
-    $("b-note").textContent = help + two + "جاوبوا بصوت عالي، والحكم على الشاشة.";
-    return;
-  }
-  $("b-cat").textContent = q.cat || ""; $("b-val").textContent = val;
+  const mine = q.answerer === tid, tn = id => teamName(id);
+  $("b-cat").textContent = q.cat || "";
+  $("b-val").textContent = fmt((q.val || 0) * (q.dbl && q.dbl === q.answerer ? 2 : 1)) + " نقطة";
   $("b-text").textContent = q.text || "";
-  const btn = $("b-btn"), sent = buzzedKey === q.key;
-  btn.style.setProperty("--tc", teamColor(tid) || "var(--brass)");
-  btn.disabled = sent; btn.textContent = sent ? "ضغطت!" : "اضغط!";
-  $("b-note").textContent = sent ? "مستنيين نعرف مين ضغط الأول…" : "أول فريق يضغط يجاوب.";
+  twoBtn($("b-two"), q, tid);
+  const canSteal = !!(last && last.helps && !q.steal && q.owner !== tid && myHelps(tid).includes("steal"));
+  const btn = $("b-btn"), sent = sentFor("steal", q);
+  btn.hidden = !canSteal;
+  if (canSteal){ btn.style.setProperty("--tc", teamColor(tid) || "var(--brass)"); btn.disabled = sent; btn.textContent = sent ? "اتبعت…" : "اسرق!"; }
+  let note;
+  if (q.steal) note = mine ? "سرقتوا السؤال! جاوبوا بصوت عالي." : q.owner === tid ? tn(q.steal) + " سرق السؤال منكم." : tn(q.steal) + " سرق السؤال من " + tn(q.owner) + ".";
+  else note = mine ? "السؤال ليكم. جاوبوا بصوت عالي، والحكم على الشاشة." : "السؤال بتاع " + tn(q.answerer) + "." + (canSteal ? " لو عايزين تسرقوه، اضغطوا قبل ما يجاوبوا." : "");
+  if (q.dbl) note += q.dbl === tid ? " لعبتوا دبل: النقط ضعف." : " " + tn(q.dbl) + " لعب دبل.";
+  if (q.dblBack === tid) note += " الدبل رجعلكم.";
+  if (q.two) note += q.two === tid ? " بتجاوبوا جوابين." : " " + tn(q.two) + " بيجاوب جوابين.";
+  $("b-note").textContent = note;
 }
-function doBuzz(e){
+function doSteal(e){
   if (e && e.type === "pointerdown") e.preventDefault();
-  const p = last; if (!p || p.kind !== "board" || p.phase !== "buzz" || !p.q || buzzedKey === p.q.key || !room) return;
-  buzzedKey = p.q.key;
-  room.send("buzz", {pid:me.pid, key:p.q.key});
-  try { if (navigator.vibrate) navigator.vibrate(40); } catch(err){}
-  buzzView(p.q, myTeam(), true);
+  const p = last; if (!p || p.kind !== "board" || p.phase !== "open" || !p.q || p.q.steal || !room) return;
+  if (sentFor("steal", p.q)) return;
+  sendHelp("steal", {key:p.q.key});
 }
 function boardFinal(tid){
   view("v-final"); $("f-sub").textContent = "انتهت اللوحة";
@@ -956,8 +932,8 @@ document.addEventListener("visibilitychange", () => {
 $("join-form").addEventListener("submit", submitJoin);
 $("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 4 && !$("in-name").value) $("in-name").focus(); });
 $("w-leave").addEventListener("click", () => showJoin());
-$("b-btn").addEventListener("pointerdown", doBuzz);
-$("b-btn").addEventListener("click", doBuzz);
+$("b-btn").addEventListener("pointerdown", doSteal);
+$("b-btn").addEventListener("click", doSteal);
 $("c-again").addEventListener("click", () => { saved.code = ""; persist(); try { history.replaceState(null, "", location.pathname); } catch(e){} showJoin(); });
 window.addEventListener("hashchange", () => { const c = codeFromUrl(); if (c && c !== me.code) showJoin(); });
 
