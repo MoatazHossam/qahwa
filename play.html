@@ -239,6 +239,33 @@ body{
 .cb-del .linkish{color:var(--muted)}
 .clubbar .msg{flex-basis:100%;margin:0}
 .clubbar .msg:empty{display:none}
+/* the room bar: invite, regulars, the game-night history */
+.cb-invite,.cb-hist{flex-basis:100%;display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:2px dashed var(--line)}
+.cb-invite[hidden],.cb-hist[hidden]{display:none}
+.cb-inv-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.cb-k{color:var(--muted);font-weight:600}
+.cb-code{font-family:var(--f-show);font-weight:700;font-size:1.5rem;line-height:1.2;letter-spacing:.12em;background:var(--led);color:var(--led-ink);text-shadow:0 0 12px var(--led-glow);padding:4px 14px 2px;border-radius:10px;box-shadow:inset 0 0 0 2px var(--led-rim)}
+.cb-hist h3{margin:0;font-family:var(--f-show);font-weight:700;font-size:1.1rem;color:var(--cream)}
+.cb-wins{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;color:var(--muted)}
+.cb-win{padding:2px 12px 3px;border-radius:999px;background:var(--wash);box-shadow:inset 0 0 0 1.5px var(--line);color:var(--cream);font-weight:600}
+.cb-win.top{background:var(--hot);color:var(--hot-ink);box-shadow:none}
+.cb-win b{font-family:var(--f-show)}
+.cb-games{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.cb-games li{display:grid;grid-template-columns:minmax(0,11em) minmax(0,8em) minmax(0,1fr);gap:4px 14px;align-items:baseline;font-size:.95rem;padding:4px 0;border-bottom:1px solid var(--line)}
+.cb-games li:last-child{border-bottom:0}
+.cb-games .d{color:var(--muted)}
+.cb-games .m{color:var(--muted)}
+.cb-games .r{font-weight:600}
+@media (max-width:560px){.cb-games li{grid-template-columns:minmax(0,1fr) auto}.cb-games .r{grid-column:1 / -1}}
+.invcard{align-items:center}
+.invcard .qr{width:min(260px,100%)}
+.invcard .join-url{color:var(--card-muted)}
+/* the lobby: remove a player, regulars who have not come in yet */
+.players li{gap:6px}
+.players .rm{border:0;background:none;color:var(--muted);font:inherit;font-size:1.15rem;line-height:1;padding:2px 6px;border-radius:999px;cursor:pointer}
+.players .rm:hover{color:var(--bad);background:var(--wash)}
+.players li.reg{opacity:.62;box-shadow:inset 0 0 0 2px var(--line);background:transparent}
+
 /* the account dialog */
 .acctcard{text-align:start;gap:14px}
 .acctcard .end-w{text-align:center;font-size:clamp(1.6rem,4vw,2.2rem)}
@@ -553,7 +580,7 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
       <form class="card" id="join-form" novalidate>
         <h1>ادخل اللعبة</h1>
         <label for="in-code">رقم الغرفة (يظهر على الشاشة)</label>
-        <input id="in-code" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="next">
+        <input id="in-code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" enterkeyhint="next">
         <label for="in-name">اسمك</label>
         <input id="in-name" maxlength="16" autocomplete="nickname" enterkeyhint="go">
         <button class="primary" type="submit">ادخل</button>
@@ -650,8 +677,8 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
     <!-- closed -->
     <section class="view" id="v-closed" hidden>
       <div class="card center">
-        <h2>أُغلقت الغرفة</h2>
-        <p class="sub">شكرًا على اللعب.</p>
+        <h2 id="c-title">أُغلقت الغرفة</h2>
+        <p class="sub" id="c-sub">شكرًا على اللعب.</p>
         <button class="ghost" id="c-again" type="button">ادخل غرفة أخرى</button>
       </div>
     </section>
@@ -879,7 +906,8 @@ function tallySvg(n){
 }
 function view(id){ VIEWS.forEach(v => { $(v).hidden = v !== id; }); }
 function cleanName(s){ return String(s || "").replace(/\s+/g, " ").trim().slice(0, 16); }
-function cleanCode(s){ return String(s || "").replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\D/g, "").slice(0, 4); }
+function cleanCode(s){ return String(s || "").replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\D/g, "").slice(0, 6); }
+const okCode = c => c.length === 4 || c.length === 6;
 function topicFor(code){ return "race-" + String(BRAND.brandId).slice(0, 8) + "-" + code; }
 function qkey(i){ return (hs || "") + ":" + ((last && last.rid) || "") + ":" + i; }
 function myAnswer(i){ const a = saved.ans || {}; return a[qkey(i)]; }
@@ -887,8 +915,8 @@ function myAnswer(i){ const a = saved.ans || {}; return a[qkey(i)]; }
 /* ===== join ===== */
 function codeFromUrl(){
   const fromHash = cleanCode(location.hash.slice(1));
-  if (fromHash.length === 4) return fromHash;
-  try { return cleanCode(new URLSearchParams(location.search).get("r")); } catch(e){ return ""; }
+  if (okCode(fromHash)) return fromHash;
+  try { const c = cleanCode(new URLSearchParams(location.search).get("r")); return okCode(c) ? c : ""; } catch(e){ return ""; }
 }
 function showJoin(msg){
   stop();
@@ -897,31 +925,36 @@ function showJoin(msg){
   $("in-code").value = code;
   $("in-name").value = saved.name || "";
   setMsg(msg || "", !!msg);
-  (code.length === 4 ? $("in-name") : $("in-code")).focus();
+  (okCode(code) ? $("in-name") : $("in-code")).focus();
 }
 function setMsg(t, err){ const m = $("join-msg"); m.textContent = t; m.classList.toggle("is-err", !!err); }
 function submitJoin(e){
   e.preventDefault();
   const code = cleanCode($("in-code").value), name = cleanName($("in-name").value);
-  if (code.length !== 4){ setMsg("اكتب رقم الغرفة، أربعة أرقام.", true); $("in-code").focus(); return; }
+  if (!okCode(code)){ setMsg("اكتب رقم الغرفة اللي على الشاشة (٤ أو ٦ أرقام).", true); $("in-code").focus(); return; }
   if (!name){ setMsg("اكتب اسمك.", true); $("in-name").focus(); return; }
   join(code, name);
 }
 function join(code, name){
   stop();
-  const pid = (saved.code === code && saved.pid) ? saved.pid : uid();
+  saved.pids = saved.pids && typeof saved.pids === "object" ? saved.pids : {};
+  const pid = saved.pids[code] || ((saved.code === code && saved.pid) ? saved.pid : uid());
+  saved.pids[code] = pid;
+  const pk = Object.keys(saved.pids); if (pk.length > 20) delete saved.pids[pk[0]];
   if (saved.code !== code) saved.ans = {};
   saved.code = code; saved.name = name; saved.pid = pid; persist();
   me = {code, name, pid};
   if (location.hash.slice(1) !== code){ try { history.replaceState(null, "", "#" + code); } catch(e){} }
   last = null; hs = null; seq = -1; everOpen = false; buzzedKey = ""; pickSent = null; ansSent = null;
   $("me").hidden = false; $("me").replaceChildren("أنت: ", h("b", null, name));
-  waitView("wait", "جارٍ الدخول إلى الغرفة " + fmt(Number(code)) + "…", "");
+  // a saved room's link (6 digits) is opened ahead of time: the phone waits until the host opens the room
+  if (code.length === 6) waitView("wait", "مستنيين الغرفة تتفتح", "أول ما المقدّم يبدأ على الشاشة هتدخل لوحدك. سيب الصفحة مفتوحة.");
+  else waitView("wait", "جارٍ الدخول إلى الغرفة " + fmt(Number(code)) + "…", "");
   room = liveRoom({topic: topicFor(code), onMessage, onStatus});
   hello();
   pulse = setInterval(hello, 4000);
   tick = setInterval(onTick, 150);
-  lost = setTimeout(() => { if (!last) waitView("wait", "لم نجد الغرفة بعد", "تأكد أن رقم الغرفة صحيح وأن شاشة اللعبة مفتوحة. ما زلنا نحاول…", true); }, 9000);
+  lost = setTimeout(() => { if (!last) waitView("wait", code.length === 6 ? "الغرفة لسه ما اتفتحتش" : "لم نجد الغرفة بعد", code.length === 6 ? "سيب الصفحة مفتوحة، وأول ما المقدّم يبدأ هتدخل لوحدك." : "تأكد أن رقم الغرفة صحيح وأن شاشة اللعبة مفتوحة. ما زلنا نحاول…", true); }, 9000);
   keepAwake();
 }
 function stop(){
@@ -941,7 +974,8 @@ function onStatus(s){
 function onMessage(ev, p){
   if (ev === "pong"){ onPong(p); return; }
   if (ev !== "state" || !p || typeof p !== "object") return;
-  if (p.hs !== hs){ hs = p.hs; seq = -1; }
+  const stream = p.hs + "|" + (p.kind || "race") + "|" + (p.rid || "");
+  if (stream !== hs){ hs = stream; seq = -1; }
   if (typeof p.seq === "number"){ if (p.seq <= seq) return; seq = p.seq; }
   clearTimeout(lost);
   last = p;
@@ -960,7 +994,11 @@ function waitView(ico, title, sub, canLeave){
 function render(){
   const p = last; if (!p) return;
   const q = p.q || null;
-  if (p.phase === "closed"){ stop(); view("v-closed"); return; }
+  if (p.phase === "closed"){ stop(); closedView(); return; }
+  if (Array.isArray(p.kicked) && p.kicked.includes(me.pid)){
+    stop(); if (saved.teamCode === me.code){ saved.team = null; persist(); }
+    waitView("out", "المقدّم شالك من الغرفة", "لو ده حصل بالغلط، اطلب منه يدخلك تاني، وادخل من الرابط.", true); return;
+  }
   if (p.kind === "board"){ boardRender(p); return; }
   $("tag").textContent = "سباق السرعة";
   if (p.style === "buzz") startClock();
@@ -1105,8 +1143,15 @@ function scoresList(tid, at){
     h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), tallyOf(t.won || 0), h("span",{class:"p"}, fmt(t.score || 0)))));
 }
 function tallyOf(n){ const el = h("span",{class:"tally",role:"img","aria-label":fmt(n) + " صح"}); el.innerHTML = tallySvg(n); return el; }
+function closedView(){
+  view("v-closed");
+  const saved6 = me.code.length === 6;
+  $("c-title").textContent = saved6 ? "السهرة خلصت" : "أُغلقت الغرفة";
+  $("c-sub").textContent = saved6 ? "شكرًا على اللعب. المرة الجاية افتح نفس الرابط." : "شكرًا على اللعب.";
+  $("c-again").textContent = saved6 ? "استنى السهرة الجاية هنا" : "ادخل غرفة أخرى";
+}
 function boardRender(p){
-  $("tag").textContent = "لوحة الفئات";
+  $("tag").textContent = p.roomName ? "غرفة «" + p.roomName + "»" : "لوحة الفئات";
   const tid = myTeam();
   if (!tid){ teamView(); return; }
   $("me").hidden = false;
@@ -1274,12 +1319,15 @@ document.addEventListener("visibilitychange", () => {
 });
 
 $("join-form").addEventListener("submit", submitJoin);
-$("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 4 && !$("in-name").value) $("in-name").focus(); });
+$("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 6 && !$("in-name").value) $("in-name").focus(); });
 $("w-leave").addEventListener("click", () => showJoin());
 $("b-form").addEventListener("submit", submitTyped);
 $("b-btn").addEventListener("pointerdown", doSteal);
 $("b-btn").addEventListener("click", doSteal);
-$("c-again").addEventListener("click", () => { saved.code = ""; persist(); try { history.replaceState(null, "", location.pathname); } catch(e){} showJoin(); });
+$("c-again").addEventListener("click", () => {
+  if (me.code.length === 6){ join(me.code, me.name); return; }   // a saved room: wait here for the next game
+  saved.code = ""; persist(); try { history.replaceState(null, "", location.pathname); } catch(e){} showJoin();
+});
 window.addEventListener("hashchange", () => { const c = codeFromUrl(); if (c && c !== me.code) showJoin(); });
 
 // Back on the same room after a reload or a lock screen: rejoin straight away.
