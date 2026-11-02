@@ -379,6 +379,29 @@ button.cell:active{transform:translateY(5px);box-shadow:inset 0 3px 0 rgba(255,2
 .qcard .qflag label,.qcard .linkish{color:var(--card-muted)}
 .qcard .qflag textarea{background:var(--field);color:var(--card-ink);border-color:var(--card-line)}
 .qcard .flag-done{background:rgba(16,34,42,.07);color:var(--card-ink)}
+/* the system runs the game: the choices on the card, and what a team answered from its phone */
+.qcard .qopts{width:100%;gap:12px}
+.qopts .ropt{padding:0;min-height:0}
+.ropt-b{display:flex;align-items:center;gap:14px;width:100%;min-height:68px;padding:12px 20px;background:none;border:0;color:inherit;font:inherit;text-align:start;cursor:pointer;border-radius:inherit}
+.ropt-b:disabled{cursor:default}
+.ropt-b:focus-visible{outline:3px solid var(--card-ink);outline-offset:3px}
+.qopts .ropt.cut{opacity:.16}
+.qopts .ropt.picked{box-shadow:0 0 0 5px var(--card-ink),0 6px 0 rgba(0,0,0,.3)}
+.qcard .ropts.revealed .ropt.right{opacity:1;box-shadow:0 0 0 5px var(--good),0 0 24px rgba(47,179,107,.45)}
+.qsub{margin:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;font-size:clamp(1.1rem,2.1vw,1.55rem);font-weight:600;color:var(--card-ink);text-wrap:balance}
+.qsub .who{background:var(--tc);color:var(--team-ink);padding:1px 14px 4px;border-radius:999px;font-family:var(--f-show);font-weight:700}
+.qsub b{font-family:var(--f-show);font-weight:700;padding:1px 14px 4px;border-radius:999px}
+.qsub b.ok{background:var(--good);color:var(--on-good)}
+.qsub b.bad{background:var(--bad);color:var(--on-bad)}
+.qsub b.ask{background:var(--tile);color:var(--tile-ink);box-shadow:0 3px 0 var(--tile-edge)}
+/* phones: the choices and the typed answer */
+.bopts .opt.cut{opacity:.15}
+.bopts .opt.picked{box-shadow:0 0 0 4px var(--bulb),0 5px 0 rgba(0,0,0,.3);opacity:1}
+.bopts .opt:disabled:not(.cut):not(.picked){opacity:.72}
+.bform{display:flex;flex-direction:column;gap:8px;background:var(--panel);border-radius:18px;padding:14px;box-shadow:inset 0 0 0 2px var(--line)}
+.bform label{font-weight:600;color:var(--cream)}
+.bform input{font-size:1.2rem}
+
 /* the steal: a stamp on the card */
 .qstamp{
   position:absolute;top:-30px;inset-inline-end:clamp(18px,4vw,48px);margin:0;z-index:2;
@@ -572,6 +595,13 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
     <section class="view" id="v-buzz" hidden>
       <div class="qmeta"><span id="b-val"></span><b id="b-cat"></b></div>
       <p class="qtext" id="b-text"></p>
+      <div class="opts bopts" id="b-opts" hidden></div>
+      <form class="bform" id="b-form" hidden novalidate>
+        <label for="b-in" id="b-in-l">اكتبوا إجابتكم</label>
+        <input id="b-in" maxlength="60" autocomplete="off" enterkeyhint="send">
+        <input id="b-in2" maxlength="60" autocomplete="off" enterkeyhint="send" hidden placeholder="الإجابة التانية" aria-label="الإجابة التانية">
+        <button class="primary" type="submit" id="b-send">ابعتوا الإجابة</button>
+      </form>
       <button class="help" id="b-two" type="button" hidden>جاوب جوابين</button>
       <button class="buzzbtn" id="b-btn" type="button" hidden>اسرق!</button>
       <p class="sub center-t" id="b-note"></p>
@@ -792,7 +822,7 @@ const VIEWS = ["v-join","v-wait","v-team","v-board","v-buzz","v-q","v-sent","v-r
 let saved = load();
 let me = {code:"", name:"", pid:""};
 let room = null, pulse = 0, tick = 0, lost = 0;
-let last = null, hs = null, seq = -1, everOpen = false, buzzedKey = "", pickSent = null, pickT = 0, helpSent = null, helpT = 0;
+let last = null, hs = null, seq = -1, everOpen = false, buzzedKey = "", pickSent = null, pickT = 0, helpSent = null, helpT = 0, ansSent = null, ansT = 0;
 const shownAt = {}, deadline = {};
 /* clock sync with the screen, for the buzzer race: the best of the last few ping/pong samples (lowest round trip) */
 let clk = null, clkT = 0, rbSent = "";
@@ -884,7 +914,7 @@ function join(code, name){
   saved.code = code; saved.name = name; saved.pid = pid; persist();
   me = {code, name, pid};
   if (location.hash.slice(1) !== code){ try { history.replaceState(null, "", "#" + code); } catch(e){} }
-  last = null; hs = null; seq = -1; everOpen = false; buzzedKey = ""; pickSent = null;
+  last = null; hs = null; seq = -1; everOpen = false; buzzedKey = ""; pickSent = null; ansSent = null;
   $("me").hidden = false; $("me").replaceChildren("أنت: ", h("b", null, name));
   waitView("wait", "جارٍ الدخول إلى الغرفة " + fmt(Number(code)) + "…", "");
   room = liveRoom({topic: topicFor(code), onMessage, onStatus});
@@ -1082,7 +1112,13 @@ function boardRender(p){
   $("me").hidden = false;
   $("me").replaceChildren(h("b", null, me.name), "، ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
   const q = p.q || null;
-  if (q && p.phase === "reveal"){ waitView("ok", "الإجابة: " + (q.answer || ""), "استنوا الحكم على الشاشة."); scoresList(tid); return; }
+  if (q && p.phase === "reveal"){
+    const mineQ = q.answerer === tid, ans = "الإجابة: " + (q.answer || "");
+    if (q.ok === true) waitView("ok", mineQ ? "إجابتكم صح!" : teamName(q.answerer) + " جاوب صح", ans);
+    else if (q.ok === false) waitView("out", q.sub && q.sub.none ? (mineQ ? "خلص الوقت" : "خلص وقت " + teamName(q.answerer)) : (mineQ ? "إجابتكم غلط" : teamName(q.answerer) + " جاوب غلط"), ans);
+    else waitView("ok", ans, "استنوا الحكم على الشاشة.");
+    scoresList(tid); return;
+  }
   if (q && p.phase === "open"){ boardQView(q, tid); return; }
   if (p.phase === "final"){ boardFinal(tid); return; }
   if (p.phase === "idle" && p.board){ boardView(p, tid); return; }
@@ -1135,10 +1171,10 @@ function helpsRow(p, tid, myTurn, a){
 }
 const sentFor = (kind, q) => !!helpSent && helpSent.kind === kind && helpSent.key === q.key;
 function twoBtn(el, q, tid){
-  const can = !!(last && last.helps && q && !q.two && q.answerer === tid && myHelps(tid).includes("two"));
+  const can = !!(last && last.helps && q && !q.two && !q.sub && q.answerer === tid && myHelps(tid).includes("two"));
   el.hidden = !can; if (!can) return;
   const sent = sentFor("two", q);
-  el.disabled = sent; el.textContent = sent ? "اتبعت…" : "جاوب جوابين";
+  el.disabled = sent; el.textContent = sent ? "اتبعت…" : q.style === "pick" ? "احذف إجابتين" : "جاوب جوابين";
   el.onclick = () => sendHelp("two", {key:q.key});
 }
 function pick(cell, gid){
@@ -1162,17 +1198,56 @@ function boardQView(q, tid){
   $("b-val").textContent = fmt((q.val || 0) * (q.dbl && q.dbl === q.answerer ? 2 : 1)) + " نقطة";
   $("b-text").textContent = q.text || "";
   twoBtn($("b-two"), q, tid);
-  const canSteal = !!(last && last.helps && !q.steal && q.owner !== tid && myHelps(tid).includes("steal"));
+  // the answer from this phone: one of the choices, or typed for the host
+  const sub = q.sub, sentMine = !!ansSent && ansSent.key === q.key && Date.now() - ansSent.at < 5000;
+  const ob = $("b-opts");
+  if (q.style === "pick" && Array.isArray(q.opts)){
+    const can = mine && !sub && !sentMine, cut = Array.isArray(q.cut) ? q.cut : [];
+    const pickedC = sub && sub.c != null ? sub.c : sentMine && ansSent.c != null ? ansSent.c : null;
+    const sig = [q.key, cut.join(","), pickedC, can].join("|");
+    ob.hidden = false;
+    if (ob.dataset.sig !== sig){
+      ob.dataset.sig = sig;
+      ob.replaceChildren(...q.opts.map((t,k) => h("button",{class:"opt" + (pickedC === k ? " picked" : "") + (cut.includes(k) ? " cut" : ""),type:"button",style:"--oc:var(--o" + k + ")",
+        disabled:(!can || cut.includes(k)) ? true : null,"aria-label":t + (cut.includes(k) ? "، اتحذفت" : ""),onclick:() => sendAnswer(q, {c:k})},
+        h("span",{class:"sh","aria-hidden":"true"}, SHAPES[k]), h("span", null, t))));
+    }
+  } else { ob.hidden = true; ob.dataset.sig = ""; ob.replaceChildren(); }
+  const f = $("b-form"), canType = q.style === "type" && mine && !sub && !sentMine;
+  if (f.dataset.k !== q.key){ f.dataset.k = q.key; $("b-in").value = ""; $("b-in2").value = ""; }
+  f.hidden = !canType;
+  $("b-in2").hidden = !(canType && q.two === tid);
+  $("b-in-l").textContent = q.two === tid ? "اكتبوا إجابتيكم" : "اكتبوا إجابتكم (أو قولوها بصوت عالي)";
+  const canSteal = !!(last && last.helps && !q.steal && !sub && q.owner !== tid && myHelps(tid).includes("steal"));
   const btn = $("b-btn"), sent = sentFor("steal", q);
   btn.hidden = !canSteal;
   if (canSteal){ btn.style.setProperty("--tc", teamColor(tid) || "var(--brass)"); btn.disabled = sent; btn.textContent = sent ? "اتبعت…" : "اسرق!"; }
   let note;
   if (q.steal) note = mine ? "سرقتوا السؤال! جاوبوا بصوت عالي." : q.owner === tid ? tn(q.steal) + " سرق السؤال منكم." : tn(q.steal) + " سرق السؤال من " + tn(q.owner) + ".";
-  else note = mine ? "السؤال ليكم. جاوبوا بصوت عالي، والحكم على الشاشة." : "السؤال بتاع " + tn(q.answerer) + "." + (canSteal ? " لو عايزين تسرقوه، اضغطوا قبل ما يجاوبوا." : "");
+  else note = mine ? (q.style === "pick" ? "السؤال ليكم. اختاروا الإجابة من موبايل واحد بس." : "السؤال ليكم. جاوبوا بصوت عالي أو اكتبوها هنا، والحكم على الشاشة.")
+    : "السؤال بتاع " + tn(q.answerer) + "." + (canSteal ? " لو عايزين تسرقوه، اضغطوا قبل ما يجاوبوا." : "");
+  if (sub && !sub.none) note = (sub.team === tid ? "اتبعتت إجابتكم" : tn(sub.team) + " جاوب") + (sub.texts ? ": «" + sub.texts.join("» و«") + "»" : "") + ". استنوا النتيجة على الشاشة.";
+  else if (sentMine) note = "جارٍ إرسال إجابتكم…";
   if (q.dbl) note += q.dbl === tid ? " لعبتوا دبل: النقط ضعف." : " " + tn(q.dbl) + " لعب دبل.";
   if (q.dblBack === tid) note += " الدبل رجعلكم.";
-  if (q.two) note += q.two === tid ? " بتجاوبوا جوابين." : " " + tn(q.two) + " بيجاوب جوابين.";
+  if (q.two) note += q.style === "pick" ? (q.two === tid ? " حذفتوا إجابتين." : " " + tn(q.two) + " حذف إجابتين.") : (q.two === tid ? " بتجاوبوا جوابين." : " " + tn(q.two) + " بيجاوب جوابين.");
   $("b-note").textContent = note;
+}
+function sendAnswer(q, a){
+  if (!room || (ansSent && ansSent.key === q.key && Date.now() - ansSent.at < 5000)) return;
+  ansSent = Object.assign({key:q.key, at:Date.now()}, a);
+  room.send("banswer", Object.assign({pid:me.pid, key:q.key}, a));
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch(e){}
+  render();
+  clearTimeout(ansT); ansT = setTimeout(render, 5100);
+}
+function submitTyped(e){
+  e.preventDefault();
+  const p = last, q = p && p.q; if (!q || p.kind !== "board" || p.phase !== "open") return;
+  const texts = [$("b-in").value, $("b-in2").hidden ? "" : $("b-in2").value].map(t => t.replace(/\s+/g, " ").trim()).filter(Boolean);
+  if (!texts.length){ $("b-in").focus(); return; }
+  $("b-in").blur(); $("b-in2").blur();
+  sendAnswer(q, {texts});
 }
 function doSteal(e){
   if (e && e.type === "pointerdown") e.preventDefault();
@@ -1201,6 +1276,7 @@ document.addEventListener("visibilitychange", () => {
 $("join-form").addEventListener("submit", submitJoin);
 $("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 4 && !$("in-name").value) $("in-name").focus(); });
 $("w-leave").addEventListener("click", () => showJoin());
+$("b-form").addEventListener("submit", submitTyped);
 $("b-btn").addEventListener("pointerdown", doSteal);
 $("b-btn").addEventListener("click", doSteal);
 $("c-again").addEventListener("click", () => { saved.code = ""; persist(); try { history.replaceState(null, "", location.pathname); } catch(e){} showJoin(); });
