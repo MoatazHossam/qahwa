@@ -544,6 +544,67 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
 .bar{background:var(--wash);height:10px}
 .bar i{background:var(--tile)}
 
+/* ---------- party rounds: الوصف, بدون كلام, كلمات معكوسة, حط الكلمة في أغنية ---------- */
+.catpick.party:not([aria-pressed="true"]){box-shadow:inset 0 0 0 2px var(--hot)}
+.catpick.party:not([aria-pressed="true"]) .ico{background:var(--hot);color:var(--hot-ink);box-shadow:none}
+.qparty{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;width:100%}
+.qp-rule{margin:0;color:var(--card-muted);font-size:clamp(1rem,1.7vw,1.25rem);max-width:46ch;text-wrap:balance}
+.qp-type{margin:0;font-family:var(--f-show);font-weight:700;background:var(--sign);color:var(--sign-ink);padding:2px 16px 5px;border-radius:999px}
+.qp-who{margin:0;font-weight:700;font-size:clamp(1.05rem,1.9vw,1.4rem);color:var(--card-ink);max-width:52ch;text-wrap:balance}
+.qp-word{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--led);color:var(--led-ink);border-radius:20px;padding:14px 34px 16px;box-shadow:inset 0 0 0 4px var(--led-rim),0 0 0 6px var(--tile)}
+.qp-word strong{font-family:var(--f-show);font-weight:700;font-size:clamp(2.2rem,6vw,4.4rem);line-height:1.2;text-shadow:0 0 22px var(--led-glow)}
+.qp-word span{font-weight:600;font-size:1.05rem}
+.qp-word span:empty{display:none}
+.qcard.party .qtext{font-family:var(--f-show);font-weight:700;font-size:clamp(1.6rem,3.6vw,2.8rem)}
+.qcard.party.revealed .qp-rule,.qcard.party.revealed .qp-type{display:none}
+.rsub{margin:0 auto;max-width:52ch;text-align:center;color:var(--cream);opacity:.88;font-size:clamp(1rem,1.8vw,1.3rem);text-wrap:balance}
+.rcard .qtext.rword{font-family:var(--f-show);font-weight:700;font-size:clamp(3rem,9vw,6.5rem);line-height:1.15;color:var(--tile);text-shadow:0 6px 0 var(--tile-edge),0 0 40px var(--bulb-glow)}
+.rcard.intro .qtext{font-family:var(--f-show);font-weight:700;font-size:clamp(2.6rem,7vw,5rem);color:var(--tile);text-shadow:0 6px 0 var(--tile-edge)}
+.rhost{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;align-self:center;width:min(640px,100%);background:var(--wash);box-shadow:inset 0 0 0 2px var(--line);border-radius:18px;padding:12px 18px}
+.rhost p{margin:0}
+.rhost-b{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.rpeek{display:flex;flex-direction:column;align-items:center;gap:2px;margin:0;background:var(--led);color:var(--led-ink);border-radius:16px;padding:10px 28px 12px;box-shadow:inset 0 0 0 4px var(--led-rim)}
+.rpeek strong{font-family:var(--f-show);font-weight:700;font-size:clamp(2rem,5vw,3.4rem);text-shadow:0 0 18px var(--led-glow)}
+#r-arev:empty{display:none}
+.rsegs .hint{margin-top:0}
+.hostbtn.live::before{content:"";display:inline-block;width:.6em;height:.6em;margin-inline-end:.45em;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good);vertical-align:.05em}
+.hostcard .qr{width:min(240px,100%)}
+
+/* phones: a party round, and the host's own phone */
+#v-party .qmeta{align-items:center}
+#v-party .qmeta b{display:inline-flex;align-items:center;gap:6px;background:var(--sign);color:var(--sign-ink);font-family:var(--f-show);padding:2px 14px 4px;border-radius:999px}
+#v-party .qmeta b .ico{width:18px;height:18px}
+.ptype{margin:0;align-self:center;font-family:var(--f-show);font-weight:700;background:var(--wash);box-shadow:inset 0 0 0 2px var(--line);padding:2px 14px 4px;border-radius:999px}
+.pword{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;background:var(--led);color:var(--led-ink);border-radius:20px;padding:14px 16px 16px;box-shadow:inset 0 0 0 4px var(--led-rim),0 0 0 5px var(--tile)}
+.pword .sub{margin:0;color:var(--led-ink);opacity:.8}
+.pword strong{font-family:var(--f-show);font-weight:700;font-size:clamp(2rem,11vw,3.2rem);line-height:1.2;text-shadow:0 0 16px var(--led-glow);overflow-wrap:anywhere}
+.pban{margin:0;font-weight:700}
+.pban:empty{display:none}
+.buzzbtn.pclaim{font-size:1.9rem;line-height:1.25;padding:20px}
+.pdone{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.pdone button{min-height:58px;font-size:1.2rem}
+body.hostm .me{display:none}
+.hhead{margin:0;align-self:center;text-align:center;font-family:var(--f-show);font-weight:700;background:var(--hot);color:var(--hot-ink);border-radius:999px;padding:4px 16px 6px}
+.hhead:empty{display:none}
+.hcard{background:var(--card);color:var(--card-ink);display:flex;flex-direction:column;gap:10px;border:0;box-shadow:0 0 0 5px var(--tile)}
+.hcard .sub{margin:0;color:var(--card-muted)}
+.hcard .qtext{color:var(--card-ink)}
+.hans{display:flex;flex-direction:column;gap:4px;text-align:center;background:var(--hot);color:var(--hot-ink);border-radius:16px;padding:10px 14px 12px}
+.hcard .hans .sub{color:var(--hot-ink);opacity:.85}
+.hans strong{font-family:var(--f-show);font-weight:700;font-size:clamp(1.7rem,9vw,2.6rem);line-height:1.25;overflow-wrap:anywhere}
+.hlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hlist li{padding:8px 12px;border-radius:12px;background:rgba(16,34,42,.07);font-weight:600}
+.hlist li.on{background:var(--good);color:var(--on-good)}
+.hacts{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:10px}
+.hacts:empty{display:none}
+.hacts button{min-height:62px;font-size:1.15rem}
+.hacts .ghost.bad{border-color:var(--bad);color:var(--bad)}
+#h-rows li{background:var(--tc,var(--wash));color:var(--team-ink);border:0;border-radius:14px;box-shadow:0 4px 0 rgba(0,0,0,.2)}
+#h-rows li:not([style]){color:var(--cream)}
+#h-rows .dot{display:none}
+#h-rows .nm{color:inherit}
+#h-rows .p{background:var(--led);color:var(--led-ink);text-shadow:0 0 10px var(--led-glow);font-family:var(--f-show);font-weight:700;padding:2px 12px 0;border-radius:10px;min-width:3.2em;text-align:center}
+
 @media (max-width:560px){
   .modes{gap:6px}
   .mode{padding:7px 12px 8px;font-size:.95rem}
@@ -634,6 +695,44 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
       <p class="sub center-t" id="b-note"></p>
     </section>
 
+    <!-- board: a party round (describe or act out a word) -->
+    <section class="view" id="v-party" hidden>
+      <div class="qmeta"><span id="p-val"></span><b id="p-cat"></b></div>
+      <p class="ptype" id="p-type" hidden></p>
+      <div class="pword" id="p-word" hidden>
+        <p class="sub">الكلمة، ليك انت بس</p>
+        <strong id="p-w"></strong>
+        <p class="pban" id="p-ban"></p>
+      </div>
+      <p class="lead center-t" id="p-lead"></p>
+      <div class="bar" id="p-bar"><i id="p-fill"></i></div>
+      <p class="left center-t" id="p-left"></p>
+      <button class="buzzbtn pclaim" id="p-claim" type="button" hidden></button>
+      <div class="pdone" id="p-done" hidden>
+        <button class="primary" id="p-ok" type="button">خمّنوها</button>
+        <button class="ghost" id="p-no" type="button">ما عرفوش</button>
+      </div>
+      <p class="sub center-t" id="p-note"></p>
+    </section>
+
+    <!-- the host's own phone -->
+    <section class="view" id="v-host" hidden>
+      <p class="hhead" id="h-head"></p>
+      <div class="card hcard">
+        <p class="sub" id="h-cat"></p>
+        <p class="qtext" id="h-q"></p>
+        <div class="hans" id="h-ans" hidden>
+          <p class="sub" id="h-ans-l">الإجابة</p>
+          <strong id="h-a"></strong>
+          <p class="sub" id="h-extra"></p>
+        </div>
+        <ol class="hlist" id="h-list" hidden></ol>
+      </div>
+      <p class="lead center-t" id="h-status" aria-live="polite"></p>
+      <div class="hacts" id="h-acts"></div>
+      <ol class="rank" id="h-rows" hidden></ol>
+    </section>
+
     <!-- question -->
     <section class="view" id="v-q" hidden>
       <div class="qmeta"><span id="q-n"></span><b id="q-cat"></b></div>
@@ -659,7 +758,7 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
         <p class="big-ico" id="r-ico" aria-hidden="true"></p>
         <p class="lead" id="r-lead"></p>
         <p class="pts" id="r-pts"></p>
-        <div class="answer"><p class="sub">الإجابة الصحيحة</p><strong id="r-ans"></strong></div>
+        <div class="answer"><p class="sub" id="r-ans-l">الإجابة الصحيحة</p><strong id="r-ans"></strong></div>
         <p class="sub" id="r-rank"></p>
       </div>
     </section>
@@ -809,6 +908,10 @@ var ICON_D = {
   "games": "M7 8h10a4 4 0 0 1 4 4v1a4 4 0 0 1-7 2.6l-.8-.9h-2.4l-.8.9A4 4 0 0 1 3 13v-1a4 4 0 0 1 4-4Z M7.5 10.5v3 M6 12h3 M15.5 11h.01 M17.5 13h.01",
   "star": "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9Z",
   "account": "M12 12a4 4 0 1 0 0-8a4 4 0 1 0 0 8Z M4.5 21a7.5 7.5 0 0 1 15 0",
+  "p-describe": "M4 5h16v11H10l-5 4v-4H4Z M8.5 10.5h.01 M12 10.5h.01 M15.5 10.5h.01",
+  "p-act": "M5 4h14v7a7 7 0 0 1-14 0Z M9 8.5h.01 M15 8.5h.01 M9 13c1.8 1.7 4.2 1.7 6 0",
+  "p-reverse": "M4 8h14 M14 4l4 4-4 4 M20 16H6 M10 12l-4 4 4 4",
+  "p-song": "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z M6 11a6 6 0 0 0 12 0 M12 17v4 M9 21h6",
   "mode-board": "M4 4h7v7H4Z M13 4h7v7h-7Z M4 13h7v7H4Z M13 13h7v7h-7Z",
   "mode-race": "M12 8a7 7 0 1 0 0 14a7 7 0 1 0 0-14Z M12 12v3.5 M10 2h4 M12 2v3 M18.5 6.5l1.5-1.5",
   "mode-feud": "M3 20h18 M5 20v-6h4v6 M10 20V8h4v12 M15 20v-9h4v9"
@@ -844,7 +947,7 @@ const fmt = n => nf.format(n);
 const fmtS = n => new Intl.NumberFormat("ar-EG",{signDisplay:"always"}).format(n);
 const SHAPES = ["▲","◆","●","■"];
 const LS = BRAND.storageKey + ":race-phone";
-const VIEWS = ["v-join","v-wait","v-team","v-board","v-buzz","v-q","v-sent","v-res","v-final","v-closed"];
+const VIEWS = ["v-join","v-wait","v-team","v-board","v-buzz","v-party","v-q","v-sent","v-res","v-final","v-closed","v-host"];
 
 let saved = load();
 let me = {code:"", name:"", pid:""};
@@ -1002,6 +1105,7 @@ function render(){
   if (p.kind === "board"){ boardRender(p); return; }
   $("tag").textContent = "سباق السرعة";
   if (p.style === "buzz") startClock();
+  if (p.phase === "intro" && p.seg){ waitView("bell", p.seg.name, p.seg.rule); return; }
   if (p.phase === "question" && q && q.style === "buzz"){ raceBuzzView(q); return; }
   if (p.phase === "lobby"){
     const ps = players(), inRoom = ps.some(x => x.id === me.pid);
@@ -1059,7 +1163,7 @@ function raceBuzzView(q){
   }
   if (Array.isArray(q.out) && q.out.includes(me.pid)){ waitView("out", "خرجت من السؤال ده", "استنى السؤال الجاي."); return; }
   view("v-q");
-  $("q-n").textContent = "سؤال " + fmt(q.i + 1) + " من " + fmt(q.n) + "، " + fmt(q.val || 0) + " نقطة";
+  $("q-n").textContent = (q.party ? "كلمة " + fmt(q.pos || 1) + " من " + fmt(q.of || 1) : "سؤال " + fmt(q.i + 1) + " من " + fmt(q.n)) + "، " + fmt(q.val || 0) + " نقطة";
   $("q-cat").textContent = q.cat || "";
   $("q-text").textContent = q.text || "";
   const box = $("q-opts");
@@ -1092,6 +1196,7 @@ function sentView(q, k){
   } else chip.hidden = true;
 }
 function onTick(){
+  partyTick();
   const p = last; if (!p || p.phase !== "question" || !p.q || $("v-q").hidden) return;
   const q = p.q, limit = Math.max(1, Number(q.limit) || 1);
   const left = Math.max(0, (deadline[qkey(q.i)] || 0) - performance.now());
@@ -1110,6 +1215,7 @@ function resultView(q){
   if (r && r.ok){ $("r-ico").textContent = "✓"; $("r-lead").textContent = "إجابة صحيحة!"; $("r-pts").textContent = fmtS(r.pts || 0); }
   else if (r){ $("r-ico").textContent = "✗"; $("r-lead").textContent = "إجابة خاطئة"; $("r-pts").textContent = r.pts ? fmtS(r.pts) : ""; }
   else { $("r-ico").textContent = "–"; $("r-lead").textContent = "لم تُجب عن هذا السؤال"; $("r-pts").textContent = ""; }
+  $("r-ans-l").textContent = q.party ? "الكلمة" : "الإجابة الصحيحة";
   $("r-ans").textContent = q.style === "buzz" ? (q.answer || "") : (q.opts && q.correct != null) ? q.opts[q.correct] : "";
   const mr = myRank();
   $("r-rank").textContent = mr ? "ترتيبك " + fmt(mr.pos) + " من " + fmt(mr.of) + "، مجموعك " + fmt(mr.score) + " نقطة" : "";
@@ -1157,6 +1263,13 @@ function boardRender(p){
   $("me").hidden = false;
   $("me").replaceChildren(h("b", null, me.name), "، ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
   const q = p.q || null;
+  if (q && p.phase === "reveal" && q.style === "party"){
+    const mineQ = q.answerer === tid, w = "الكلمة: " + (q.answer || "");
+    if (q.ok === true) waitView("ok", mineQ ? "خمّنتوها!" : teamName(q.answerer) + " خمّنوها", w);
+    else if (q.ok === false) waitView("out", mineQ ? "ما لحقتوش" : teamName(q.answerer) + " ما لحقوش", w);
+    else waitView("ok", w, "خلص الوقت. استنوا الحكم على الشاشة.");
+    scoresList(tid); return;
+  }
   if (q && p.phase === "reveal"){
     const mineQ = q.answerer === tid, ans = "الإجابة: " + (q.answer || "");
     if (q.ok === true) waitView("ok", mineQ ? "إجابتكم صح!" : teamName(q.answerer) + " جاوب صح", ans);
@@ -1164,7 +1277,7 @@ function boardRender(p){
     else waitView("ok", ans, "استنوا الحكم على الشاشة.");
     scoresList(tid); return;
   }
-  if (q && p.phase === "open"){ boardQView(q, tid); return; }
+  if (q && p.phase === "open"){ if (q.style === "party") partyView(q, tid); else boardQView(q, tid); return; }
   if (p.phase === "final"){ boardFinal(tid); return; }
   if (p.phase === "idle" && p.board){ boardView(p, tid); return; }
   waitView("ok", "إنت في " + teamName(tid), "استنوا لحد ما اللعب يبدأ على الشاشة.");
@@ -1278,6 +1391,63 @@ function boardQView(q, tid){
   if (q.two) note += q.style === "pick" ? (q.two === tid ? " حذفتوا إجابتين." : " " + tn(q.two) + " حذف إجابتين.") : (q.two === tid ? " بتجاوبوا جوابين." : " " + tn(q.two) + " بيجاوب جوابين.");
   $("b-note").textContent = note;
 }
+/* a party round: one player of the team says «I'll describe it» and only their phone shows the word; when the team
+   gets it, that player says so here (or the host does, on the screen) */
+let claimSent = "", pdoneSent = "", pDead = 0, pStill = 0, pTot = 60000, pRun = false;
+function partyView(q, tid){
+  view("v-party");
+  pickSent = null;
+  const mine = q.answerer === tid, perf = q.perf, iAm = !!perf && perf.pid === me.pid;
+  const dsc = q.party === "describe", tn = teamName(q.answerer);
+  $("p-cat").replaceChildren(...(q.slug ? [iconEl(q.slug)] : []), q.cat || "");
+  $("p-val").textContent = fmt((q.val || 0) * (q.dbl && q.dbl === q.answerer ? 2 : 1)) + " نقطة";
+  $("p-type").hidden = !q.type; $("p-type").textContent = q.type ? "النوع: " + q.type : "";
+  const sec = iAm && q.secret && q.secret.to === me.pid ? q.secret : null;
+  $("p-word").hidden = !sec;
+  if (sec){ $("p-w").textContent = sec.w || ""; $("p-ban").textContent = Array.isArray(sec.ban) && sec.ban.length ? "ممنوع تقول: " + sec.ban.join("، ") : dsc ? "" : "ولا كلمة ولا صوت!"; }
+  pTot = Math.max(1, Number(q.total) || 60000); pRun = !!q.run; pStill = Math.max(0, Number(q.left) || 0); pDead = performance.now() + pStill;
+  $("p-bar").hidden = !q.started; $("p-left").hidden = !q.started;
+  const canClaim = mine && !perf && !q.started;
+  const cb = $("p-claim");
+  cb.hidden = !canClaim;
+  if (canClaim){ const sent = claimSent === q.key; cb.style.setProperty("--tc", teamColor(tid) || "var(--brass)"); cb.disabled = sent; cb.textContent = sent ? "لحظة…" : dsc ? "أنا اللي هوصف" : "أنا اللي همثّل"; }
+  $("p-done").hidden = !(iAm && q.started && pdoneSent !== q.key);
+  let lead, note = "";
+  if (iAm){ lead = dsc ? "اوصفها لفريقك من غير ما تقولها" : "مثّلها لفريقك من غير ولا كلمة"; note = "لما يخمّنوها اضغط «خمّنوها»."; }
+  else if (mine && perf){ lead = "«" + perf.name + "» " + (dsc ? "بيوصف" : "بيمثّل") + " لكم. خمّنوا بصوت عالي!"; }
+  else if (mine && q.started){ lead = "يلا! خمّنوا بصوت عالي"; }
+  else if (mine){ lead = "الدور عليكم في «" + (q.cat || "") + "»"; note = "واحد بس منكم يضغط، والكلمة هتظهر على موبايله هو بس."; }
+  else { lead = tn + " بيلعب «" + (q.cat || "") + "»"; note = "استنوا دوركم، ومن غير مساعدة!"; }
+  if (q.dbl) note += (note ? " " : "") + (q.dbl === tid ? "لعبتوا دبل: النقط ضعف." : teamName(q.dbl) + " لعب دبل.");
+  $("p-lead").textContent = lead; $("p-note").textContent = note;
+  partyTick();
+}
+function partyTick(){
+  if ($("v-party").hidden || $("p-bar").hidden) return;
+  const left = pRun ? Math.max(0, pDead - performance.now()) : pStill;
+  $("p-fill").style.transform = "scaleX(" + (left / pTot).toFixed(3) + ")";
+  $("p-bar").classList.toggle("warn", left <= 10000);
+  $("p-left").textContent = left > 0 ? "باقي " + fmt(Math.ceil(left / 1000)) + " ث" + (pRun ? "" : "، والوقت واقف") : "خلص الوقت";
+}
+function claimWord(){
+  const p = last, q = p && p.q;
+  if (!room || !q || p.kind !== "board" || p.phase !== "open" || q.style !== "party" || q.perf || claimSent === q.key) return;
+  claimSent = q.key;
+  room.send("claim", {pid:me.pid, key:q.key});
+  try { if (navigator.vibrate) navigator.vibrate(30); } catch(e){}
+  render();
+  setTimeout(() => { if (claimSent === q.key){ claimSent = ""; render(); } }, 4000);
+}
+function partyDone(ok){
+  const p = last, q = p && p.q;
+  if (!room || !q || q.style !== "party" || !q.perf || q.perf.pid !== me.pid || pdoneSent === q.key) return;
+  pdoneSent = q.key;
+  room.send("pdone", {pid:me.pid, key:q.key, ok:!!ok});
+  try { if (navigator.vibrate) navigator.vibrate(ok ? 40 : 20); } catch(e){}
+  render();
+  setTimeout(() => { if (pdoneSent === q.key){ pdoneSent = ""; render(); } }, 5000);
+}
+
 function sendAnswer(q, a){
   if (!room || (ansSent && ansSent.key === q.key && Date.now() - ansSent.at < 5000)) return;
   ansSent = Object.assign({key:q.key, at:Date.now()}, a);
@@ -1322,18 +1492,84 @@ $("join-form").addEventListener("submit", submitJoin);
 $("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 6 && !$("in-name").value) $("in-name").focus(); });
 $("w-leave").addEventListener("click", () => showJoin());
 $("b-form").addEventListener("submit", submitTyped);
+$("p-claim").addEventListener("click", claimWord);
+$("p-ok").addEventListener("click", () => partyDone(true));
+$("p-no").addEventListener("click", () => partyDone(false));
 $("b-btn").addEventListener("pointerdown", doSteal);
 $("b-btn").addEventListener("click", doSteal);
 $("c-again").addEventListener("click", () => {
   if (me.code.length === 6){ join(me.code, me.name); return; }   // a saved room: wait here for the next game
   saved.code = ""; persist(); try { history.replaceState(null, "", location.pathname); } catch(e){} showJoin();
 });
-window.addEventListener("hashchange", () => { const c = codeFromUrl(); if (c && c !== me.code) showJoin(); });
+window.addEventListener("hashchange", () => {
+  if (/^#host-/.test(location.hash) || document.body.classList.contains("hostm")){ location.reload(); return; }
+  const c = codeFromUrl(); if (c && c !== me.code) showJoin();
+});
 
-// Back on the same room after a reload or a lock screen: rejoin straight away.
-const startCode = codeFromUrl();
-if (startCode && saved.code === startCode && saved.pid && cleanName(saved.name)) join(startCode, cleanName(saved.name));
-else showJoin();
+/* ===== موبايل المقدّم =====
+   play.html#host-<key>: the host's own phone. It listens on the screen's private channel (named by the key in the link)
+   and shows what the screen sends it: the answer, the word, the buttons to judge. It never joins the players' room. */
+let hroom = null, hlast = null, hhs = null, hseq = -1, hSent = "";
+function hostMain(key){
+  document.body.classList.add("hostm");
+  $("tag").textContent = "موبايل المقدّم";
+  $("me").hidden = true;
+  waitView("wait", "جارٍ الاتصال بالشاشة…", "سيب الصفحة مفتوحة. اللي على الشاشة هيظهر هنا، ومعاه الإجابة.");
+  const hi = () => { if (hroom) hroom.send("hi", {}); };
+  hroom = liveRoom({topic:"host-" + String(BRAND.brandId).slice(0, 8) + "-" + key, onMessage:onHost, onStatus:st => { onStatus(st); if (st === "open") hi(); }});
+  hi(); pulse = setInterval(hi, 3000);
+  lost = setTimeout(() => { if (!hlast) waitView("wait", "الشاشة مش متصلة", "افتح اللعبة على الشاشة اللي عملت الكود. لو عملتوا كود جديد، امسحه تاني.", false); }, 9000);
+  keepAwake();
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && hroom){ hroom.wake(); hi(); keepAwake(); } });
+}
+function onHost(ev, p){
+  if (ev !== "hstate" || !p || typeof p !== "object") return;
+  if (p.hs !== hhs){ hhs = p.hs; hseq = -1; }
+  if (typeof p.seq === "number"){ if (p.seq <= hseq) return; hseq = p.seq; }
+  clearTimeout(lost);
+  if (!hlast || hlast.key !== p.key) hSent = "";
+  hlast = p;
+  renderHost();
+}
+function renderHost(){
+  const p = hlast; if (!p) return;
+  view("v-host");
+  const c = p.card || {};
+  $("h-head").textContent = c.head || "";
+  $("h-cat").textContent = c.cat || ""; $("h-cat").hidden = !c.cat;
+  $("h-q").textContent = c.text || "";
+  $("h-ans").hidden = !c.big;
+  $("h-ans-l").textContent = c.alabel || "الإجابة";
+  $("h-a").textContent = c.big || "";
+  $("h-extra").textContent = c.extra || ""; $("h-extra").hidden = !c.extra;
+  const list = Array.isArray(c.list) ? c.list : null, ol = $("h-list");
+  ol.hidden = !list;
+  ol.replaceChildren(...(list || []).map(x => h("li",{class:x.on ? "on" : null}, x.t)));
+  $("h-status").textContent = c.status || "";
+  const acts = Array.isArray(p.acts) ? p.acts : [];
+  $("h-acts").replaceChildren(...acts.map(a => h("button",{class:a.kind === "bad" ? "ghost bad" : a.kind === "ghost" ? "ghost" : "primary",type:"button",
+    disabled:hSent ? true : null,onclick:() => hostAct(a.id)}, a.label)));
+  const rows = Array.isArray(p.rows) ? p.rows : [], rl = $("h-rows");
+  rl.hidden = !rows.length;
+  rl.replaceChildren(...rows.map(r => h("li",{style:r.c ? "--tc:" + r.c : null}, r.c ? h("span",{class:"dot","aria-hidden":"true"}) : null, h("span",{class:"nm"}, r.n), h("span",{class:"p"}, fmt(r.p || 0)))));
+}
+function hostAct(id){
+  const p = hlast; if (!hroom || !p || hSent) return;
+  hSent = id;
+  hroom.send("act", {act:id, key:p.key});
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch(e){}
+  renderHost();
+  setTimeout(() => { if (hSent === id){ hSent = ""; renderHost(); } }, 3000);
+}
+
+const HOSTM = /^#host-([a-z0-9]{12})$/.exec(location.hash);
+if (HOSTM) hostMain(HOSTM[1]);
+else {
+  // Back on the same room after a reload or a lock screen: rejoin straight away.
+  const startCode = codeFromUrl();
+  if (startCode && saved.code === startCode && saved.pid && cleanName(saved.name)) join(startCode, cleanName(saved.name));
+  else showJoin();
+}
 })();
 </script>
 </body>
