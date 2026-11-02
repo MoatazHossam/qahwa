@@ -214,6 +214,47 @@ body{
 .actions .primary{font-size:1.6rem;padding:17px 40px 15px}
 .fest{border-inline-start-color:var(--tile)}
 
+/* the account button and the room bar */
+.acct{display:inline-flex;align-items:center;gap:8px;font:inherit;font-weight:600;font-size:.95rem;padding:8px 16px 9px;border-radius:999px;border:0;cursor:pointer;
+  background:var(--wash);color:var(--cream);box-shadow:inset 0 0 0 2px var(--line)}
+.acct:hover{box-shadow:inset 0 0 0 2px var(--line-strong)}
+.acct .ico{width:20px;height:20px}
+.clubbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;padding:14px 20px;border-radius:20px;background:var(--panel);box-shadow:inset 0 0 0 2px var(--line),0 10px 24px rgba(0,0,0,.14)}
+.clubbar[hidden]{display:none}
+.cb-text{flex:1 1 280px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cb-text h2{margin:0;font-family:var(--f-show);font-weight:700;font-size:1.35rem;line-height:1.3;color:var(--tile)}
+.cb-text .hint{max-width:none}
+.cb-pick{display:flex;flex-wrap:wrap;gap:8px}
+.cb-chip{font:inherit;font-weight:600;font-size:1rem;padding:8px 16px 9px;border-radius:999px;border:0;cursor:pointer;background:var(--wash);color:var(--cream);box-shadow:inset 0 0 0 2px var(--line)}
+.cb-chip:hover{box-shadow:inset 0 0 0 2px var(--line-strong)}
+.cb-chip[aria-pressed="true"]{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var(--hot-deep)}
+.cb-chip.cb-add{background:linear-gradient(var(--tile-hi),var(--tile) 55%,var(--tile-lo));color:var(--tile-ink);box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 4px 0 var(--tile-edge)}
+.cb-new{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.cb-new[hidden],.cb-del[hidden]{display:none}
+.cb-new label{color:var(--muted);font-size:.92rem}
+.cb-new input{flex:1 1 220px;min-width:0;font-size:1.1rem;padding:10px 14px;border-radius:12px;border:0;background:var(--night);box-shadow:inset 0 0 0 2px var(--line-strong)}
+.cb-new input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--tile)}
+.cb-new .primary{font-size:1.15rem;padding:11px 22px 10px}
+.cb-del{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;font-size:.9rem;color:var(--muted)}
+.cb-del .linkish{color:var(--muted)}
+.clubbar .msg{flex-basis:100%;margin:0}
+.clubbar .msg:empty{display:none}
+/* the account dialog */
+.acctcard{text-align:start;gap:14px}
+.acctcard .end-w{text-align:center;font-size:clamp(1.6rem,4vw,2.2rem)}
+.acctcard .end-k{text-align:center}
+.acct-seg{align-self:center;display:flex;justify-content:center;width:max-content;margin:0 auto}
+.acctform{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.acctform label{font-size:.95rem;color:var(--card-muted)}
+.acctform label[hidden],.acctform input[hidden]{display:none}
+.acctform input{width:100%;font-size:1.15rem;padding:11px 14px;border-radius:12px;border:2px solid var(--card-line);background:var(--field);color:var(--card-ink)}
+.acctform input:focus{outline:none;border-color:var(--sign)}
+.acctform .primary{margin-top:8px}
+.acct-in{display:flex;flex-direction:column;align-items:center;gap:12px}
+.acctcard .msg{text-align:center;color:var(--card-muted);min-height:1.6em}
+.acctcard .msg.is-err{color:var(--bad)}
+.acctcard .linkish{align-self:center;color:var(--card-muted)}
+
 /* ---------- game screen: the board ---------- */
 /* during a game the header shrinks and the board and podiums share one screen */
 .app[data-scr="board"],.app[data-scr="feud"]{gap:12px;padding-block:12px 20px}
@@ -710,6 +751,7 @@ var ICON_D = {
   "language": "M4 20l4.5-12h1L14 20 M5.7 16h6.6 M15 4h6 M18 4v9 M15.5 13h5",
   "games": "M7 8h10a4 4 0 0 1 4 4v1a4 4 0 0 1-7 2.6l-.8-.9h-2.4l-.8.9A4 4 0 0 1 3 13v-1a4 4 0 0 1 4-4Z M7.5 10.5v3 M6 12h3 M15.5 11h.01 M17.5 13h.01",
   "star": "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9Z",
+  "account": "M12 12a4 4 0 1 0 0-8a4 4 0 1 0 0 8Z M4.5 21a7.5 7.5 0 0 1 15 0",
   "mode-board": "M4 4h7v7H4Z M13 4h7v7h-7Z M4 13h7v7H4Z M13 13h7v7h-7Z",
   "mode-race": "M12 8a7 7 0 1 0 0 14a7 7 0 1 0 0-14Z M12 12v3.5 M10 2h4 M12 2v3 M18.5 6.5l1.5-1.5",
   "mode-feud": "M3 20h18 M5 20v-6h4v6 M10 20V8h4v12 M15 20v-9h4v9"

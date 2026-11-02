@@ -316,7 +316,7 @@ async function api(path, opts){
 const rpc = (fn, args) => api("/rpc/" + fn, {method:"POST", body:args || {}});
 
 /* ---------- data ---------- */
-const D = {brands:[], packBrands:{}, cats:[], catById:{}, qs:[], qById:{}, qstat:{}, fstat:{}, flags:[], feud:[], feudById:{}, feudStat:{}, games:[]};
+const D = {brands:[], packBrands:{}, cats:[], catById:{}, qs:[], qById:{}, qstat:{}, fstat:{}, flags:[], feud:[], feudById:{}, feudStat:{}, games:[], rooms:[], accounts:null};
 let brand = "all", tab = "reports";
 const STATUS = {draft:"مسودة", verified:"شغال", published:"شغال", flagged:"مسحوب", retired:"ملغي"};
 const MODES = {board:"لوحة الفئات", speed_race:"سباق السرعة", feud:"أشهر إجابة"};
@@ -339,6 +339,9 @@ async function load(){
     api("/admin_feud_stats?select=*&limit=5000"),
     api("/games?select=id,brand_id,mode,started_at,ended_at,scores&started_at=gte." + encodeURIComponent(since) + "&order=started_at.desc&limit=10000")
   ]);
+  // rooms and accounts are extra: the rest of the page works without them
+  const [rooms, accounts] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null)]);
+  D.rooms = Array.isArray(rooms) ? rooms : []; D.accounts = typeof accounts === "number" ? accounts : null;
   D.brands = brands; D.packBrands = {};
   bp.forEach(x => (D.packBrands[x.pack_id] = D.packBrands[x.pack_id] || []).push(x.brand_id));
   D.cats = cats; D.catById = Object.fromEntries(cats.map(c => [c.id, c]));
@@ -529,9 +532,11 @@ function renderQTable(){
 }
 
 /* ---------- games ---------- */
+const roomsWord = n => n === 0 ? "مفيش غرف" : n === 1 ? "غرفة واحدة" : n === 2 ? "غرفتين" : n <= 10 ? fmt(n) + " غرف" : fmt(n) + " غرفة";
 function renderGames(){
   const box = $("p-games");
   const games = D.games.filter(g => inBrand([g.brand_id]));
+  const rooms = D.rooms.filter(r => inBrand([r.brand_id]));
   const now = Date.now(), day = 86400000;
   const in7 = games.filter(g => now - Date.parse(g.started_at) < 7 * day), in30 = games.filter(g => now - Date.parse(g.started_at) < 30 * day);
   const tracked = games.filter(g => Date.parse(g.started_at) >= ENDS_FROM && now - Date.parse(g.started_at) > 6 * 3600000);
@@ -541,7 +546,9 @@ function renderGames(){
     h("div",{class:"tile"}, h("span",{class:"k"}, "ألعاب آخر ٧ أيام"), h("span",{class:"v"}, fmt(in7.length)), h("span",{class:"s"}, byMode(in7))),
     h("div",{class:"tile"}, h("span",{class:"k"}, "ألعاب آخر ٣٠ يوم"), h("span",{class:"v"}, fmt(in30.length)), h("span",{class:"s"}, byMode(in30))),
     h("div",{class:"tile"}, h("span",{class:"k"}, "نسبة الألعاب اللي خلصت"), h("span",{class:"v"}, tracked.length ? pf.format(done / tracked.length * 100) + "٪" : "—"),
-      h("span",{class:"s"}, tracked.length ? fmt(done) + " من " + fmt(tracked.length) + " لعبة من ١ نوفمبر" : "بيتحسب للألعاب اللي بدأت من ١ نوفمبر")));
+      h("span",{class:"s"}, tracked.length ? fmt(done) + " من " + fmt(tracked.length) + " لعبة من ١ نوفمبر" : "بيتحسب للألعاب اللي بدأت من ١ نوفمبر")),
+    h("div",{class:"tile"}, h("span",{class:"k"}, "الحسابات والغرف"), h("span",{class:"v"}, D.accounts == null ? "—" : fmt(D.accounts)),
+      h("span",{class:"s"}, "حسابات، و" + roomsWord(rooms.length))));
   // last 30 days, one bar per day
   const days = [];
   const start = new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate() - 29);
@@ -565,7 +572,13 @@ function renderGames(){
         return h("tr", null, h("td",{class:"num"}, dtf.format(new Date(g.started_at))), h("td", null, brandName(g.brand_id)), h("td", null, MODES[g.mode] || g.mode),
           h("td", null, g.ended_at ? h("span",{class:"tag ok"}, "خلصت") : Date.parse(g.started_at) < ENDS_FROM ? h("span",{class:"muted small"}, "قبل التسجيل") : h("span",{class:"tag"}, "لأ")),
           h("td", null, top ? (top.team || top.player || "") + " · " + fmt(top.points) : "—")); })))) : h("p",{class:"empty"}, "لسه مفيش ألعاب."));
-  box.replaceChildren(h("div",{class:"stack"}, tiles, chart, split, recent));
+  const roomsPanel = h("div",{class:"panel"}, h("div",{class:"hd"}, h("h2", null, "الغرف"), h("span",{class:"muted small"}, "كل غرفة وصاحبها واللي اتلعب فيها")),
+    rooms.length ? h("div",{class:"tbl-wrap"}, h("table", null,
+      h("thead", null, h("tr", null, h("th", null, "الغرفة"), h("th", null, "الهوية"), h("th", null, "صاحبها"), h("th",{class:"n"}, "ألعاب"), h("th",{class:"n"}, "أسئلة اتلعبت"), h("th",{class:"n"}, "جولات أشهر إجابة"), h("th", null, "آخر لعب"))),
+      h("tbody", null, rooms.map(r => h("tr", null, h("td", null, r.name), h("td", null, brandName(r.brand_id)), h("td",{dir:"ltr",class:"small"}, r.owner_email || ""),
+        h("td",{class:"n"}, fmt(Number(r.games) || 0)), h("td",{class:"n"}, fmt(Number(r.seen_q) || 0)), h("td",{class:"n"}, fmt(Number(r.seen_feud) || 0)),
+        h("td",{class:"num"}, r.last_played_at ? dtf.format(new Date(r.last_played_at)) : "لسه")))))) : h("p",{class:"empty"}, "لسه محدش عمل غرفة."));
+  box.replaceChildren(h("div",{class:"stack"}, tiles, chart, split, roomsPanel, recent));
 }
 function gamesChart(days){
   // drawn at the box's real pixel width, so text and bars keep their size on any screen
