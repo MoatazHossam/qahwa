@@ -725,7 +725,7 @@ function renderReview(){
   const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length;
   $("c-review").textContent = fmt(n); $("c-review").classList.toggle("alert", n > 0);
   if (!n){ box.replaceChildren(h("div",{class:"panel"}, h("div",{class:"hd"}, h("h2", null, "المراجعة")),
-    h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها."))); return; }
+    h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها.")), researchPanel()); return; }
   const need = R.qs.map(q => q.id).filter(id => !(id in REV.sources));
   if (need.length) loadReviewExtras(need).catch(() => {});
   const parts = [h("div",{class:"hd"}, h("h2", null, "مستني مراجعة"), h("span",{class:"muted small"}, "اللي تعتمده بيبقى في اللعبة الجاية على طول. عدّل لو محتاج، أو ارفض."))];
@@ -736,7 +736,61 @@ function renderReview(){
       h("thead", null, h("tr", null, h("th", null, "الكلمة"), h("th", null, "الفقرة"), h("th",{class:"n"}, "المستوى"), h("th", null, "ممنوع يتقال"), h("th", null, ""))),
       h("tbody", null, R.ps.map(p => h("tr",{"data-id":p.id}, h("td",{class:"qcell"}, p.text), h("td", null, PARTY_KIND[p.kind] || p.kind), h("td",{class:"n"}, fmt(p.level)),
         h("td", null, (p.banned || []).join("، ")), h("td", null, decide("party_items", p, null))))))));
-  box.replaceChildren(h("div",{class:"panel"}, ...parts));
+  box.replaceChildren(h("div",{class:"panel"}, ...parts), researchPanel());
+}
+
+/* ---------- research history: how each question was written and checked, kept in the database ----------
+   A research file (made from the research batches with research_export.py) is added from here; rows already in are
+   skipped, so the same file can be added again safely. */
+let RES_KEYS = null;   // src_md5 of the rows in the database
+let RES_MSG = null;    // the last import's message, kept across redraws of the tab
+function resSay(t, err){
+  RES_MSG = {t, err:!!err};
+  const m = $("res-msg"); if (m){ m.textContent = t; m.className = "msg" + (err ? " err" : " ok"); m.hidden = false; }
+}
+async function loadResearchKeys(){
+  const rows = await api("/research_items?select=src_md5&limit=20000");
+  RES_KEYS = new Set(rows.map(r => r.src_md5).filter(Boolean));
+  if (tab === "review") renderReview();
+}
+function researchPanel(){
+  if (RES_KEYS == null) loadResearchKeys().catch(() => { RES_KEYS = new Set(); });
+  const msg = h("p",{class:"msg" + (RES_MSG ? (RES_MSG.err ? " err" : " ok") : ""),id:"res-msg",role:"status","aria-live":"polite",hidden:!RES_MSG}, RES_MSG ? RES_MSG.t : "");
+  const input = h("input",{type:"file",accept:".json,application/json",id:"res-file"});
+  input.addEventListener("change", () => { const f = input.files && input.files[0]; if (f) importResearch(f, input); });
+  return h("div",{class:"panel",id:"res-panel"},
+    h("div",{class:"hd"}, h("h2", null, "سجل الكتابة والمراجعة"),
+      h("span",{class:"muted small"}, RES_KEYS == null ? "بيحمّل…" : "في قاعدة البيانات " + fmt(RES_KEYS.size) + " عنصر: مسودات الكتّاب، وحكم المراجع وملاحظاته، واللي اترفض وسببه.")),
+    h("div",{class:"bd"}, h("label",{class:"field"}, h("span", null, "إضافة ملف سجل البحث (research_….json)"), input), msg));
+}
+async function importResearch(file, input){
+  const say = resSay;
+  let doc = null;
+  try { doc = JSON.parse(await file.text()); } catch(e){}
+  if (!doc || doc.kind !== "quiz-research" || !Array.isArray(doc.items) || !Array.isArray(doc.batches)){ say("الملف ده مش ملف سجل بحث.", true); return; }
+  input.disabled = true;
+  try {
+    if (RES_KEYS == null) await loadResearchKeys();
+    await api("/research_batches?on_conflict=dir", {method:"POST", body:doc.batches, prefer:"resolution=ignore-duplicates,return=minimal"});
+    const todo = doc.items.filter(x => x && x.src_md5 && !RES_KEYS.has(x.src_md5));
+    let added = 0, failed = 0;
+    const put = rows => api("/research_items?on_conflict=src_md5", {method:"POST", body:rows, prefer:"resolution=ignore-duplicates,return=minimal"});
+    for (let i = 0; i < todo.length; i += 100){
+      const part = todo.slice(i, i + 100);
+      try { await put(part); added += part.length; }
+      catch(e){
+        // one row at a time; a row pointing at a question that is gone goes in without the link
+        for (const x of part){
+          try { await put([x]); added++; }
+          catch(e2){ try { await put([Object.assign({}, x, {question_id:null, feud_round_id:null})]); added++; } catch(e3){ failed++; } }
+        }
+      }
+      say("اتضاف " + fmt(added) + " من " + fmt(todo.length) + "…");
+    }
+    RES_KEYS = null; await loadResearchKeys();
+    say("اتضاف " + fmt(added) + (doc.items.length - todo.length ? "، و" + fmt(doc.items.length - todo.length) + " كانوا موجودين قبل كده" : "") + (failed ? "، وماقدرناش نضيف " + fmt(failed) : "") + ".", failed > 0);
+  } catch(e){ say("ماقدرناش نضيف الملف. جرب تاني.", true); }
+  finally { input.disabled = false; }
 }
 
 /* ---------- the brand: name, the line under it, the footer and the team colours, read by the game when it opens ---------- */
@@ -797,6 +851,10 @@ function editQuestion(q, fromReport){
   const s = D.qstat[q.id] || {}, f = D.fstat[q.id] || {};
   const wrong = (q.wrong_options || []).concat(["","",""]).slice(0, 3);
   const srcBox = h("ol",{class:"srcs"}, h("li",{class:"muted"}, "بيحمّل المصادر…"));
+  const resBox = h("div",{class:"checks"});
+  api("/research_items?select=verdict,notes,dir&question_id=eq." + q.id).then(rows => {
+    resBox.replaceChildren(...rows.filter(r => r.verdict || r.notes).map(r => h("p", null, h("span",{class:"tag" + (r.verdict === "ok" ? " ok" : r.verdict === "fixed" ? " warn" : " bad")}, VERDICT[r.verdict] || r.verdict || "مراجعة"), " ", r.notes || "")));
+  }).catch(() => {});
   api("/sources?select=url,title,checked_on&question_id=eq." + q.id).then(rows => {
     srcBox.replaceChildren(...(rows.length ? rows.map(r => h("li", null, h("a",{href:r.url,target:"_blank",rel:"noopener noreferrer"}, r.title || r.url), h("span",{class:"muted"}, " · اتراجع " + r.checked_on))) : [h("li",{class:"muted"}, "مفيش مصادر مسجلة.")]));
   }).catch(() => srcBox.replaceChildren(h("li",{class:"muted"}, "ماقدرناش نحمّل المصادر.")));
@@ -810,6 +868,7 @@ function editQuestion(q, fromReport){
     h("label",{class:"field"}, h("span", null, "ملاحظة للمقدم"), h("textarea",{id:"e-n",rows:"2"}, q.host_note || "")),
     h("div",{class:"row2"}, levelSelect("e-l", q.level), fromReport ? h("div") : statusSelect("e-s", q.status)),
     h("div",{class:"field"}, h("span", null, "المصادر"), srcBox),
+    h("div",{class:"field review"}, resBox),
     h("p",{class:"muted small"}, "التعديل بيوصل للعب من أول لعبة جديدة."),
     footer(fromReport, {
       check(){
