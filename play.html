@@ -440,7 +440,16 @@ button.cell:active{transform:translateY(5px);box-shadow:inset 0 3px 0 rgba(255,2
 .qstamp span{font-weight:700;font-size:1rem}
 .qstamp span::before{content:"";display:inline-block;width:.7em;height:.7em;border-radius:50%;background:var(--tc);margin-inline-end:6px;box-shadow:0 0 0 2px var(--hot-ink)}
 @keyframes stamp{from{opacity:0;transform:rotate(-8deg) scale(2.2)}}
-@media (max-width:640px){.qstamp{position:static;transform:rotate(-3deg);margin-top:-6px}@keyframes stamp{from{opacity:0;transform:rotate(-3deg) scale(1.8)}}}
+/* the surprises: a stamp on the other corner */
+.qstamp.qsurprise{inset-inline-end:auto;inset-inline-start:clamp(18px,4vw,48px);transform:rotate(7deg);background:var(--tile);color:var(--tile-ink);
+  box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--tile-edge),0 12px 26px rgba(0,0,0,.35);animation:stamp2 .55s cubic-bezier(.2,1.6,.4,1)}
+.qstamp.qsurprise.minus{background:var(--bad);color:var(--on-bad);box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--bad),0 12px 26px rgba(0,0,0,.35)}
+.qstamp.qsurprise span::before{display:none}
+@keyframes stamp2{from{opacity:0;transform:rotate(7deg) scale(2.4)}}
+.dd.minus{background:var(--bad);color:var(--on-bad)}
+.qunsteal{align-self:center}
+.score .adj .giveback{font-size:.72rem;white-space:nowrap}
+@media (max-width:640px){.qstamp,.qstamp.qsurprise{position:static;transform:rotate(-3deg);margin-top:-6px}@keyframes stamp{from{opacity:0;transform:rotate(-3deg) scale(1.8)}}}
 
 /* ---------- the end of a game ---------- */
 .endcard{background:var(--card);color:var(--card-ink);border:0;border-radius:28px;width:min(640px,calc(100% - 28px));
@@ -691,6 +700,7 @@ body.hostm .me{display:none}
         <button class="primary" type="submit" id="b-send">ابعتوا الإجابة</button>
       </form>
       <button class="help" id="b-two" type="button" hidden>جاوب جوابين</button>
+      <button class="help" id="b-ch" type="button" hidden>الاختيارات</button>
       <button class="buzzbtn" id="b-btn" type="button" hidden>اسرق!</button>
       <p class="sub center-t" id="b-note"></p>
     </section>
@@ -1356,6 +1366,9 @@ function boardQView(q, tid){
   $("b-val").textContent = fmt((q.val || 0) * (q.dbl && q.dbl === q.answerer ? 2 : 1)) + " نقطة";
   $("b-text").textContent = q.text || "";
   twoBtn($("b-two"), q, tid);
+  { const el = $("b-ch"), can = !!(last && last.helps && q.canOpts && q.answerer === tid && myHelps(tid).includes("opts"));
+    el.hidden = !can;
+    if (can){ const sent = sentFor("opts", q); el.disabled = sent; el.textContent = sent ? "اتبعت…" : "اعرضوا الاختيارات"; el.onclick = () => sendHelp("opts", {key:q.key}); } }
   // the answer from this phone: one of the choices, or typed for the host
   const sub = q.sub, sentMine = !!ansSent && ansSent.key === q.key && Date.now() - ansSent.at < 5000;
   const ob = $("b-opts");
@@ -1376,7 +1389,7 @@ function boardQView(q, tid){
   f.hidden = !canType;
   $("b-in2").hidden = !(canType && q.two === tid);
   $("b-in-l").textContent = q.two === tid ? "اكتبوا إجابتيكم" : "اكتبوا إجابتكم (أو قولوها بصوت عالي)";
-  const canSteal = !!(last && last.helps && !q.steal && !sub && q.owner !== tid && myHelps(tid).includes("steal"));
+  const canSteal = !!(last && last.helps && !q.steal && !q.optsBy && !sub && q.owner !== tid && myHelps(tid).includes("steal"));
   const btn = $("b-btn"), sent = sentFor("steal", q);
   btn.hidden = !canSteal;
   if (canSteal){ btn.style.setProperty("--tc", teamColor(tid) || "var(--brass)"); btn.disabled = sent; btn.textContent = sent ? "اتبعت…" : "اسرق!"; }
@@ -1389,6 +1402,8 @@ function boardQView(q, tid){
   if (q.dbl) note += q.dbl === tid ? " لعبتوا دبل: النقط ضعف." : " " + tn(q.dbl) + " لعب دبل.";
   if (q.dblBack === tid) note += " الدبل رجعلكم.";
   if (q.two) note += q.style === "pick" ? (q.two === tid ? " حذفتوا إجابتين." : " " + tn(q.two) + " حذف إجابتين.") : (q.two === tid ? " بتجاوبوا جوابين." : " " + tn(q.two) + " بيجاوب جوابين.");
+  if (q.optsBy) note += q.optsBy === tid ? " طلبتوا الاختيارات." : " " + tn(q.optsBy) + " طلب الاختيارات.";
+  note = surpriseNote(q, tid) + note;
   $("b-note").textContent = note;
 }
 /* a party round: one player of the team says «I'll describe it» and only their phone shows the word; when the team
@@ -1419,6 +1434,7 @@ function partyView(q, tid){
   else if (mine){ lead = "الدور عليكم في «" + (q.cat || "") + "»"; note = "واحد بس منكم يضغط، والكلمة هتظهر على موبايله هو بس."; }
   else { lead = tn + " بيلعب «" + (q.cat || "") + "»"; note = "استنوا دوركم، ومن غير مساعدة!"; }
   if (q.dbl) note += (note ? " " : "") + (q.dbl === tid ? "لعبتوا دبل: النقط ضعف." : teamName(q.dbl) + " لعب دبل.");
+  note = surpriseNote(q, tid) + note;
   $("p-lead").textContent = lead; $("p-note").textContent = note;
   partyTick();
 }
@@ -1448,6 +1464,12 @@ function partyDone(ok){
   setTimeout(() => { if (pdoneSent === q.key){ pdoneSent = ""; render(); } }, 5000);
 }
 
+/* the surprises, said once the cell is open */
+function surpriseNote(q, tid){
+  if (q.minus) return q.minus === tid ? "مفاجأة! اتخصم منكم ١٠٠ نقطة. " : "مفاجأة! اتخصم من " + teamName(q.minus) + " ١٠٠ نقطة. ";
+  if (q.dd) return "مفاجأة! السؤال ده نقطه ضعف. ";
+  return "";
+}
 function sendAnswer(q, a){
   if (!room || (ansSent && ansSent.key === q.key && Date.now() - ansSent.at < 5000)) return;
   ansSent = Object.assign({key:q.key, at:Date.now()}, a);
