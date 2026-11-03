@@ -623,7 +623,8 @@ body.hostm .me{display:none}
   .score.is-turn::before{display:none}
 }
 
-/* brand theme */
+</style>
+<style id="brand-theme">
 /* قهوة الطيبين: the studio in its own colours (the studio's defaults are this brand's): a teal sunburst,
    orange signs, yellow tiles, magenta for whose turn it is. Shared by the screen and the phones. */
 :root{
@@ -796,7 +797,26 @@ body.hostm .me{display:none}
 </div>
 
 <script>
-const BRAND = {"storageKey": "qahwa-tayebeen:v1", "brandId": "5d3277bb-001d-4bbe-b43b-255d4076b749", "bankLabel": "qahwa-v5-485", "teamColors": ["#F2672E", "#E8558A", "#4FA3E0", "#3CC07A", "#A47CF3", "#2EC4B6"], "teamColorsPrev": ["#F2D06B", "#8FD3F4", "#F4A7B9", "#B8E08A", "#F6B26B", "#C9B6F2"], "feudLabel": "feud-1"};
+const BRAND = {"storageKey": "qahwa-tayebeen:v1", "brandId": "5d3277bb-001d-4bbe-b43b-255d4076b749", "teamColors": ["#F2672E", "#E8558A", "#4FA3E0", "#3CC07A", "#A47CF3", "#2EC4B6"], "teamColorsPrev": ["#F2D06B", "#8FD3F4", "#F4A7B9", "#B8E08A", "#F6B26B", "#C9B6F2"]};
+const SB_URL = "https://bsfzfarfrnxgpckmprut.supabase.co", SB_KEY = "sb_publishable_6LjuIzeMjepexKqCHCy9vQ_IcLWX4DX";
+/* the brand's look from the database (name, tagline, footer, team colours, theme CSS, fonts); the page starts with the
+   look it was built with, so a missing or slow database never leaves it bare */
+function applyBrand(b){
+  if (!b || typeof b !== "object") return;
+  if (Array.isArray(b.teamColors) && b.teamColors.length >= 2 && b.teamColors.every(c => /^#[0-9a-f]{6}$/i.test(c))) BRAND.teamColors = b.teamColors;
+  const name = String(b.name || "").trim(), title = String(b.title || "").trim() || name;
+  if (name) document.querySelectorAll(".logo").forEach(e => { e.textContent = name; });
+  if (title) document.title = document.title.replace(/^[^·]*/, title + (document.title.includes("·") ? " " : ""));
+  if (typeof b.tagline === "string") document.querySelectorAll(".brand .tag:not([id])").forEach(e => { e.textContent = b.tagline; });
+  if (typeof b.footer === "string") document.querySelectorAll(".brand-foot").forEach(e => { e.textContent = b.footer; });
+  if (typeof b.themeCss === "string" && b.themeCss.trim() && !/<\/?style/i.test(b.themeCss)){ const st = document.getElementById("brand-theme"); if (st) st.textContent = b.themeCss; }
+  const m = typeof b.fontLink === "string" ? b.fontLink.match(/href="(https:\/\/fonts\.googleapis\.com\/[^"]+)"/) : null;
+  if (m && ![...document.querySelectorAll('link[rel="stylesheet"]')].some(l => l.getAttribute("href") === m[1].replace(/&amp;/g, "&")))
+    document.head.append(Object.assign(document.createElement("link"), {rel:"stylesheet", href:m[1].replace(/&amp;/g, "&")}));
+}
+// the brand's look from the database (never the questions: this page has none)
+fetch(SB_URL + "/rest/v1/rpc/get_brand", {method:"POST", headers:{"apikey":SB_KEY, "Content-Type":"application/json"}, body:JSON.stringify({p_brand:BRAND.brandId})})
+  .then(r => r.ok ? r.json() : null).then(applyBrand).catch(() => {});
 </script>
 <script>
 /* Live room over Supabase Realtime "broadcast" (Phoenix websocket protocol, vsn 1.0.0).

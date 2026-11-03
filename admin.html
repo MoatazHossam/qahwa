@@ -168,6 +168,15 @@ dialog .hd{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
   .top .who{margin-inline-start:0;width:100%;justify-content:space-between}
 }
 @media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+.review .checks{display:grid;gap:4px;margin:0;font-size:.88rem}
+.review .checks p{margin:0}
+.bulk{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+.bulk h3{margin:0;font-size:1rem}
+table.words td .actions{flex-wrap:nowrap}
+.brandform{display:grid;gap:12px;max-width:560px}
+#p-brand .panel+.panel{margin-top:16px}
+.colors{display:flex;flex-wrap:wrap;gap:8px}
+.colors input{width:52px;height:40px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 </style>
 </head>
 <body>
@@ -210,18 +219,21 @@ dialog .hd{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
     </div>
     <nav class="tabs" role="tablist" aria-label="الأقسام">
       <button role="tab" id="t-reports" aria-controls="p-reports" aria-selected="true">البلاغات <span class="count" id="c-reports">٠</span></button>
+      <button role="tab" id="t-review" aria-controls="p-review" aria-selected="false">المراجعة <span class="count" id="c-review">٠</span></button>
       <button role="tab" id="t-questions" aria-controls="p-questions" aria-selected="false">الأسئلة</button>
       <button role="tab" id="t-games" aria-controls="p-games" aria-selected="false">الألعاب</button>
       <button role="tab" id="t-feud" aria-controls="p-feud" aria-selected="false">أشهر إجابة</button>
+      <button role="tab" id="t-brand" aria-controls="p-brand" aria-selected="false">الهوية</button>
     </nav>
   </header>
   <main>
     <p class="msg err" id="load-msg" hidden></p>
-    <div class="notice" id="pending-note" hidden></div>
     <section id="p-reports" role="tabpanel" aria-labelledby="t-reports"></section>
     <section id="p-questions" role="tabpanel" aria-labelledby="t-questions" hidden></section>
     <section id="p-games" role="tabpanel" aria-labelledby="t-games" hidden></section>
     <section id="p-feud" role="tabpanel" aria-labelledby="t-feud" hidden></section>
+    <section id="p-review" role="tabpanel" aria-labelledby="t-review" hidden></section>
+    <section id="p-brand" role="tabpanel" aria-labelledby="t-brand" hidden></section>
   </main>
 </div>
 
@@ -316,19 +328,21 @@ async function api(path, opts){
 const rpc = (fn, args) => api("/rpc/" + fn, {method:"POST", body:args || {}});
 
 /* ---------- data ---------- */
-const D = {brands:[], packBrands:{}, cats:[], catById:{}, qs:[], qById:{}, qstat:{}, fstat:{}, flags:[], feud:[], feudById:{}, feudStat:{}, games:[], rooms:[], accounts:null};
+const D = {brands:[], packBrands:{}, cats:[], catById:{}, qs:[], qById:{}, qstat:{}, fstat:{}, flags:[], feud:[], feudById:{}, feudStat:{}, party:[], games:[], rooms:[], accounts:null};
 let brand = "all", tab = "reports";
-const STATUS = {draft:"مسودة", verified:"شغال", published:"شغال", flagged:"مسحوب", retired:"ملغي"};
+const STATUS = {draft:"مستني مراجعة", verified:"شغال", published:"شغال", flagged:"مسحوب", retired:"ملغي"};
 const MODES = {board:"لوحة الفئات", speed_race:"سباق السرعة", feud:"أشهر إجابة"};
 const RES = {restore:"رجع زي ما هو", fixed:"اتعدل", retire:"اتلغى"};
-const playable = x => (x.status === "verified" || x.status === "published") && x.version <= x.built_version;
-const pending = x => x.version > x.built_version;
+// the games read the database when they open: whatever is verified is in the next game, edits included
+const playable = x => x.status === "verified" || x.status === "published";
+const statusTag = x => x.status === "verified" || x.status === "published" ? null
+  : h("span",{class:"sub"}, h("span",{class:"tag" + (x.status === "retired" ? " bad" : x.status === "draft" ? " warn" : "")}, STATUS[x.status]));
 
 async function load(){
   $("load-msg").hidden = true;
   const since = new Date(Date.now() - 90 * 86400000).toISOString();
   const [brands, bp, cats, qs, qst, fst, flags, feud, feudst, games] = await Promise.all([
-    api("/brands?select=id,slug,name&order=created_at"),
+    api("/brands?select=id,slug,name,theme&order=created_at"),
     api("/brand_packs?select=brand_id,pack_id"),
     api("/categories?select=id,pack_id,slug,name,sort&order=sort"),
     api("/questions?select=id,category_id,level,question,answer,accepted_answers,wrong_options,host_note,status,version,built_version,batch,updated_at&order=level&limit=10000"),
@@ -340,7 +354,9 @@ async function load(){
     api("/games?select=id,brand_id,mode,started_at,ended_at,scores&started_at=gte." + encodeURIComponent(since) + "&order=started_at.desc&limit=10000")
   ]);
   // rooms and accounts are extra: the rest of the page works without them
-  const [rooms, accounts] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null)]);
+  const [rooms, accounts, party] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null),
+    api("/party_items?select=id,pack_id,kind,level,text,banned,status&order=kind,level&limit=10000").catch(() => [])]);
+  D.party = Array.isArray(party) ? party : [];
   D.rooms = Array.isArray(rooms) ? rooms : []; D.accounts = typeof accounts === "number" ? accounts : null;
   D.brands = brands; D.packBrands = {};
   bp.forEach(x => (D.packBrands[x.pack_id] = D.packBrands[x.pack_id] || []).push(x.brand_id));
@@ -366,7 +382,7 @@ function renderBrandSeg(){
 }
 function setTab(t){
   tab = t;
-  for (const k of ["reports","questions","games","feud"]){
+  for (const k of ["reports","review","questions","games","feud","brand"]){
     $("t-" + k).setAttribute("aria-selected", String(k === t));
     $("p-" + k).hidden = k !== t;
   }
@@ -376,11 +392,7 @@ function render(){
   const groups = openGroups();
   $("c-reports").textContent = fmt(groups.length);
   $("c-reports").classList.toggle("alert", groups.length > 0);
-  const pq = D.qs.filter(q => pending(q) && inBrand(qBrands(q))).length, pf2 = D.feud.filter(r => pending(r) && inBrand(brandsOfPack(r.pack_id))).length;
-  const note = $("pending-note");
-  note.hidden = !(pq + pf2);
-  if (pq + pf2) note.replaceChildren(h("span", null, "فيه ", h("b", null, fmt(pq + pf2)), " تعديل مستني تحديث الموقع. لحد التحديث، الأسئلة دي متشالة من اللعب عشان النسخة القديمة متظهرش."));
-  renderReports(groups); renderQuestions(); renderGames(); renderFeud();
+  renderReports(groups); renderReview(); renderQuestions(); renderGames(); renderFeud(); renderBrand();
 }
 
 /* ---------- reports ---------- */
@@ -476,7 +488,7 @@ function renderQuestions(){
     h("label",{class:"field grow"}, h("span", null, "بحث"), search),
     sel("qf-cat","الفئة", qFilter.cat, [["","كل الفئات"], ...cats.map(c => [c.id, c.name])], v => qFilter.cat = v),
     sel("qf-level","المستوى", qFilter.level, [["","كل المستويات"], ...[1,2,3,4,5].map(l => [String(l), "مستوى " + fmt(l)])], v => qFilter.level = v),
-    sel("qf-status","الحالة", qFilter.status, [["playable","شغال"],["pending","مستني تحديث الموقع"],["flagged","مسحوب"],["retired","ملغي"],["all","الكل"]], v => qFilter.status = v),
+    sel("qf-status","الحالة", qFilter.status, [["playable","شغال"],["draft","مستني مراجعة"],["flagged","مسحوب"],["retired","ملغي"],["all","الكل"]], v => qFilter.status = v),
     sel("qf-sort","الترتيب", qFilter.sort, [["shown","الأكثر لعبًا"],["hard","الأصعب"],["easy","الأسهل"],["dislike","الأقل إعجابًا"],["skip","الأكثر تبديلًا"],["level","المستوى محتاج مراجعة"],["cat","الفئة والمستوى"]], v => qFilter.sort = v));
   const tablePanel = h("div",{class:"panel",id:"q-panel"}, h("div",{class:"bd"}, filters), h("div",{id:"q-table"}));
   box.replaceChildren(cap, tablePanel);
@@ -486,7 +498,7 @@ function filteredQs(){
   const t = qFilter.q.trim();
   let list = D.qs.filter(q => inBrand(qBrands(q)) && (!qFilter.cat || q.category_id === qFilter.cat) && (!qFilter.level || q.level === Number(qFilter.level)));
   if (qFilter.status === "playable") list = list.filter(playable);
-  else if (qFilter.status === "pending") list = list.filter(pending);
+  else if (qFilter.status === "draft") list = list.filter(q => q.status === "draft");
   else if (qFilter.status === "flagged") list = list.filter(q => q.status === "flagged");
   else if (qFilter.status === "retired") list = list.filter(q => q.status === "retired");
   if (t) list = list.filter(q => q.question.includes(t) || q.answer.includes(t) || (q.accepted_answers || []).some(a => a.includes(t)));
@@ -514,7 +526,7 @@ function renderQTable(){
     const sug = f.avg_suggested == null ? null : Number(f.avg_suggested);
     return h("tr",{class:"click",tabindex:"0",onclick:() => editQuestion(q, false),onkeydown:e => { if (e.key === "Enter") editQuestion(q, false); }},
       h("td",{class:"qcell"}, q.question, h("span",{class:"sub"}, q.answer)),
-      h("td", null, catName(q.category_id), pending(q) ? h("span",{class:"sub"}, h("span",{class:"tag warn"}, "مستني تحديث")) : q.status !== "verified" && q.status !== "published" ? h("span",{class:"sub"}, h("span",{class:"tag" + (q.status === "retired" ? " bad" : "")}, STATUS[q.status])) : null),
+      h("td", null, catName(q.category_id), statusTag(q)),
       h("td",{class:"n"}, fmt(q.level)),
       h("td",{class:"n"}, fmt(s.shown || 0)),
       h("td",{class:"n"}, r == null ? "—" : pf.format(r * 100) + "٪"),
@@ -634,17 +646,132 @@ function renderFeud(){
       h("thead", null, h("tr", null, h("th", null, "الجولة"), h("th", null, "الهوية"), h("th",{class:"n"}, "المستوى"), h("th",{class:"n"}, "اتلعبت"), h("th",{class:"n"}, "نسبة الكشف"), h("th",{class:"n"}, "اتسرقت"), h("th",{class:"n"}, "متوسط النقط"))),
       h("tbody", null, list.map(r => { const s = D.feudStat[r.id] || {};
         return h("tr",{class:"click",tabindex:"0",onclick:() => editRound(r, false),onkeydown:e => { if (e.key === "Enter") editRound(r, false); }},
-          h("td",{class:"qcell"}, r.prompt, pending(r) ? h("span",{class:"sub"}, h("span",{class:"tag warn"}, "مستني تحديث")) : r.status !== "verified" && r.status !== "published" ? h("span",{class:"sub"}, h("span",{class:"tag" + (r.status === "retired" ? " bad" : "")}, STATUS[r.status])) : null),
+          h("td",{class:"qcell"}, r.prompt, statusTag(r)),
           h("td", null, brandsOfPack(r.pack_id).map(brandName).join("، ")),
           h("td",{class:"n"}, fmt(r.level)), h("td",{class:"n"}, fmt(s.plays || 0)),
           h("td",{class:"n"}, s.plays ? fmt(s.avg_revealed_pct) + "٪" : "—"), h("td",{class:"n"}, fmt(s.stolen || 0)), h("td",{class:"n"}, s.plays ? fmt(s.avg_points) : "—")); })))) : h("p",{class:"empty"}, "مفيش جولات.")));
+}
+
+/* ---------- review: new content waits here, out of the games, until it is approved ---------- */
+const PARTY_KIND = {describe:"الوصف", act:"بدون كلام", reverse:"كلمات معكوسة", song_word:"حط الكلمة في أغنية"};
+const VERDICT = {ok:"المراجع أكّده", fixed:"المراجع صلّحه", rejected:"المراجع رفضه", duplicate:"مكرر"};
+const approvedBy = () => ({verified_by:"admin: " + (sess && sess.email || ""), verified_at:new Date().toISOString()});
+const reviewedBy = () => ({reviewed_by:"admin: " + (sess && sess.email || ""), reviewed_at:new Date().toISOString()});
+const REV = {sources:{}, research:{}};
+function drafts(){
+  return {qs:D.qs.filter(q => q.status === "draft" && inBrand(qBrands(q))),
+    rs:D.feud.filter(r => r.status === "draft" && inBrand(brandsOfPack(r.pack_id))),
+    ps:D.party.filter(p => p.status === "draft" && inBrand(brandsOfPack(p.pack_id)))};
+}
+// approve or reject a list of items, a hundred at a time
+async function setStatus(table, ids, status){
+  const extra = status !== "verified" ? {} : table === "questions" ? approvedBy() : table === "feud_rounds" ? reviewedBy() : {};
+  for (let i = 0; i < ids.length; i += 100)
+    await api("/" + table + "?id=in.(" + ids.slice(i, i + 100).join(",") + ")", {method:"PATCH", body:Object.assign({status}, extra), prefer:"return=minimal"});
+}
+// the sources and the checkers' notes of the questions waiting, fetched once
+async function loadReviewExtras(ids){
+  ids.forEach(id => { REV.sources[id] = REV.sources[id] || null; });
+  for (let i = 0; i < ids.length; i += 80){
+    const part = ids.slice(i, i + 80).join(",");
+    const [src, res] = await Promise.all([
+      api("/sources?select=question_id,url,title,checked_on&question_id=in.(" + part + ")").catch(() => []),
+      api("/research_items?select=question_id,verdict,notes&question_id=in.(" + part + ")").catch(() => [])]);
+    ids.slice(i, i + 80).forEach(id => { REV.sources[id] = []; REV.research[id] = []; });
+    src.forEach(x => { if (REV.sources[x.question_id]) REV.sources[x.question_id].push(x); });
+    res.forEach(x => { if (REV.research[x.question_id]) REV.research[x.question_id].push(x); });
+  }
+  if (tab === "review") renderReview();
+}
+function bulkBar(title, n, table, ids){
+  const yes = h("button",{class:"btn primary",type:"button"}, "اعتمد الكل (" + fmt(n) + ")");
+  let armed = false;
+  yes.addEventListener("click", () => {
+    if (!armed){ armed = true; yes.textContent = "متأكد؟ اضغط تاني"; setTimeout(() => { armed = false; yes.textContent = "اعتمد الكل (" + fmt(n) + ")"; }, 4000); return; }
+    act(yes, () => setStatus(table, ids, "verified"));
+  });
+  return h("div",{class:"bulk"}, h("h3", null, title + ": " + fmt(n)), n > 1 ? yes : null);
+}
+function decide(table, item, editFn){
+  const ok = h("button",{class:"btn primary",type:"button"}, "اعتمد");
+  ok.addEventListener("click", () => act(ok, () => setStatus(table, [item.id], "verified")));
+  const no = h("button",{class:"btn danger",type:"button"}, "ارفض");
+  no.addEventListener("click", () => act(no, () => setStatus(table, [item.id], "retired")));
+  return h("div",{class:"actions"}, ok, editFn ? h("button",{class:"btn",type:"button",onclick:editFn}, "تعديل") : null, no);
+}
+function reviewQ(q){
+  const src = REV.sources[q.id], res = REV.research[q.id] || [];
+  return h("article",{class:"report review","data-id":q.id},
+    h("div",{class:"where"}, h("span", null, qBrands(q).map(brandName).join("، ")), h("span", null, catName(q.category_id)), h("span", null, "المستوى " + fmt(q.level)), q.batch ? h("span", null, q.batch) : null),
+    h("p",{class:"q"}, q.question),
+    h("dl",{class:"kv"},
+      h("dt", null, "الإجابة"), h("dd", null, q.answer),
+      q.accepted_answers && q.accepted_answers.length ? [h("dt", null, "مقبول كمان"), h("dd", null, q.accepted_answers.join("، "))] : null,
+      h("dt", null, "الاختيارات الغلط"), h("dd", null, (q.wrong_options || []).join("، ")),
+      q.host_note ? [h("dt", null, "ملاحظة المقدم"), h("dd", null, q.host_note)] : null),
+    res.length ? h("div",{class:"checks"}, res.map(x => h("p", null, h("span",{class:"tag" + (x.verdict === "ok" ? " ok" : x.verdict === "fixed" ? " warn" : " bad")}, VERDICT[x.verdict] || x.verdict || "مراجعة"), " ", x.notes || ""))) : null,
+    src == null ? h("p",{class:"muted small"}, "بيحمّل المصادر…")
+      : h("ol",{class:"srcs"}, src.length ? src.map(r => h("li", null, h("a",{href:r.url,target:"_blank",rel:"noopener noreferrer"}, r.title || r.url))) : h("li",{class:"muted"}, "مفيش مصادر مسجلة.")),
+    decide("questions", q, () => editQuestion(q, false)));
+}
+function reviewRound(r){
+  return h("article",{class:"report review","data-id":r.id},
+    h("div",{class:"where"}, h("span", null, brandsOfPack(r.pack_id).map(brandName).join("، ")), h("span", null, "أشهر إجابة"), h("span", null, "المستوى " + fmt(r.level))),
+    h("p",{class:"q"}, r.prompt),
+    h("ol",{class:"answers"}, (r.answers || []).map(a => h("li", null, h("span",{class:"pts num"}, fmt(a.pts)), h("span", null, a.text)))),
+    decide("feud_rounds", r, () => editRound(r, false)));
+}
+function renderReview(){
+  const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length;
+  $("c-review").textContent = fmt(n); $("c-review").classList.toggle("alert", n > 0);
+  if (!n){ box.replaceChildren(h("div",{class:"panel"}, h("div",{class:"hd"}, h("h2", null, "المراجعة")),
+    h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها."))); return; }
+  const need = R.qs.map(q => q.id).filter(id => !(id in REV.sources));
+  if (need.length) loadReviewExtras(need).catch(() => {});
+  const parts = [h("div",{class:"hd"}, h("h2", null, "مستني مراجعة"), h("span",{class:"muted small"}, "اللي تعتمده بيبقى في اللعبة الجاية على طول. عدّل لو محتاج، أو ارفض."))];
+  if (R.qs.length) parts.push(bulkBar("أسئلة", R.qs.length, "questions", R.qs.map(q => q.id)), ...R.qs.map(reviewQ));
+  if (R.rs.length) parts.push(bulkBar("جولات أشهر إجابة", R.rs.length, "feud_rounds", R.rs.map(r => r.id)), ...R.rs.map(reviewRound));
+  if (R.ps.length) parts.push(bulkBar("كلمات الفقرات", R.ps.length, "party_items", R.ps.map(p => p.id)),
+    h("div",{class:"tbl-wrap"}, h("table",{class:"words"},
+      h("thead", null, h("tr", null, h("th", null, "الكلمة"), h("th", null, "الفقرة"), h("th",{class:"n"}, "المستوى"), h("th", null, "ممنوع يتقال"), h("th", null, ""))),
+      h("tbody", null, R.ps.map(p => h("tr",{"data-id":p.id}, h("td",{class:"qcell"}, p.text), h("td", null, PARTY_KIND[p.kind] || p.kind), h("td",{class:"n"}, fmt(p.level)),
+        h("td", null, (p.banned || []).join("، ")), h("td", null, decide("party_items", p, null))))))));
+  box.replaceChildren(h("div",{class:"panel"}, ...parts));
+}
+
+/* ---------- the brand: name, the line under it, the footer and the team colours, read by the game when it opens ---------- */
+function renderBrand(){
+  const list = brand === "all" ? D.brands : D.brands.filter(b => b.id === brand);
+  $("p-brand").replaceChildren(...(list.length ? list.map(brandForm) : [h("p",{class:"empty"}, "مفيش هويات.")]));
+}
+function brandForm(b){
+  const t = b.theme && typeof b.theme === "object" ? b.theme : {};
+  const colors = (Array.isArray(t.teamColors) ? t.teamColors : []).concat(["#F2672E","#E8558A","#4FA3E0","#3CC07A","#A47CF3","#2EC4B6"]).slice(0, 6);
+  const nameI = h("input",{type:"text",value:b.name || "",maxlength:"40"}), tagI = h("input",{type:"text",value:t.tagline || "",maxlength:"80"}),
+        footI = h("input",{type:"text",value:t.footer || "",maxlength:"120"});
+  const colorIs = colors.map((c,i) => h("input",{type:"color",value:/^#[0-9a-f]{6}$/i.test(c) ? c : "#888888","aria-label":"لون الفريق " + fmt(i + 1)}));
+  const msg = h("p",{class:"msg err",hidden:true}), save = h("button",{class:"btn primary",type:"button"}, "احفظ");
+  save.addEventListener("click", async () => {
+    const name = nameI.value.trim();
+    if (!name){ msg.textContent = "اكتب الاسم."; msg.hidden = false; return; }
+    const theme = Object.assign({}, t, {title:name, tagline:tagI.value.trim(), footer:footI.value.trim(), teamColors:colorIs.map(x => x.value.toUpperCase())});
+    save.disabled = true; msg.hidden = true;
+    try { await api("/brands?id=eq." + b.id, {method:"PATCH", body:{name, theme}, prefer:"return=minimal"}); await load(); }
+    catch(e){ save.disabled = false; msg.textContent = "ماقدرناش نحفظ. جرب تاني."; msg.hidden = false; }
+  });
+  const f = (label, el) => h("label",{class:"field"}, h("span", null, label), el);
+  return h("div",{class:"panel","data-brand":b.id},
+    h("div",{class:"hd"}, h("h2", null, b.name), h("span",{class:"muted small"}, "اللعبة بتقرا الإعدادات دي من أول ما الصفحة تتفتح.")),
+    h("div",{class:"bd brandform"}, f("الاسم", nameI), f("السطر تحت الاسم", tagI), f("سطر في آخر الصفحة", footI),
+      h("div",{class:"field"}, h("span", null, "ألوان الفرق بالترتيب"), h("div",{class:"colors"}, colorIs)),
+      h("div",{class:"foot"}, msg, save)));
 }
 
 /* ---------- editors ---------- */
 const dlg = $("dlg"), form = $("dlg-form");
 const splitList = v => v.split(/[،,]/).map(x => x.trim()).filter(Boolean);
 function statusSelect(id, val){
-  return h("label",{class:"field"}, h("span", null, "الحالة"), h("select",{id}, [["verified","شغال"],["flagged","مسحوب"],["retired","ملغي"]].map(([v,l]) => h("option",{value:v, selected:(val === v || (val === "published" && v === "verified")) ? true : null}, l))));
+  return h("label",{class:"field"}, h("span", null, "الحالة"), h("select",{id}, [["verified","شغال"],["draft","مستني مراجعة"],["flagged","مسحوب"],["retired","ملغي"]].map(([v,l]) => h("option",{value:v, selected:(val === v || (val === "published" && v === "verified")) ? true : null}, l))));
 }
 function levelSelect(id, val){
   return h("label",{class:"field"}, h("span", null, "المستوى"), h("select",{id}, [1,2,3,4,5].map(l => h("option",{value:String(l), selected:l === val ? true : null}, "مستوى " + fmt(l)))));
@@ -683,7 +810,7 @@ function editQuestion(q, fromReport){
     h("label",{class:"field"}, h("span", null, "ملاحظة للمقدم"), h("textarea",{id:"e-n",rows:"2"}, q.host_note || "")),
     h("div",{class:"row2"}, levelSelect("e-l", q.level), fromReport ? h("div") : statusSelect("e-s", q.status)),
     h("div",{class:"field"}, h("span", null, "المصادر"), srcBox),
-    h("p",{class:"muted small"}, "تعديل نص السؤال أو الإجابة بيشيله من اللعب لحد التحديث الجاي للموقع، عشان النسخة القديمة متظهرش."),
+    h("p",{class:"muted small"}, "التعديل بيوصل للعب من أول لعبة جديدة."),
     footer(fromReport, {
       check(){
         const qq = $("e-q").value.trim(), a = $("e-a").value.trim(), w = [0,1,2].map(i => $("e-w" + i).value.trim());
@@ -697,6 +824,7 @@ function editQuestion(q, fromReport){
         const body = {question:$("e-q").value.trim(), answer:$("e-a").value.trim(), accepted_answers:splitList($("e-acc").value),
           wrong_options:[0,1,2].map(i => $("e-w" + i).value.trim()), host_note:$("e-n").value.trim() || null, level:Number($("e-l").value)};
         if (!fromReport) body.status = $("e-s").value;
+        if (body.status === "verified" && q.status === "draft") Object.assign(body, approvedBy());
         await api("/questions?id=eq." + q.id, {method:"PATCH", body, prefer:"return=minimal"});
         if (fromReport) await rpc("admin_resolve", {p_kind:"question", p_item:q.id, p_action:"fixed"});
       }
@@ -733,6 +861,7 @@ function editRound(r, fromReport){
         const answers = this.read().sort((x,y) => y.pts - x.pts);
         const body = {prompt:$("r-p").value.trim(), level:Number($("r-l").value), answers};
         if (!fromReport) body.status = $("r-s").value;
+        if (body.status === "verified" && r.status === "draft") Object.assign(body, reviewedBy());
         await api("/feud_rounds?id=eq." + r.id, {method:"PATCH", body, prefer:"return=minimal"});
         if (fromReport) await rpc("admin_resolve", {p_kind:"feud", p_item:r.id, p_action:"fixed"});
       }
@@ -787,7 +916,7 @@ $("f-signin").addEventListener("submit", async e => {
 $("b-out").addEventListener("click", signOut);
 $("denied-out").addEventListener("click", signOut);
 $("b-reload").addEventListener("click", async () => { $("b-reload").disabled = true; try { await load(); } catch(e){ showLoadErr("ماقدرناش نحمّل البيانات."); } $("b-reload").disabled = false; });
-for (const k of ["reports","questions","games","feud"]) $("t-" + k).addEventListener("click", () => setTab(k));
+for (const k of ["reports","review","questions","games","feud","brand"]) $("t-" + k).addEventListener("click", () => setTab(k));
 $("dlg").addEventListener("close", () => form.replaceChildren());
 
 (async () => {
