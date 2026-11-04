@@ -326,6 +326,26 @@ async function api(path, opts){
   const txt = await r.text(); return txt ? JSON.parse(txt) : null;
 }
 const rpc = (fn, args) => api("/rpc/" + fn, {method:"POST", body:args || {}});
+/* Every row of a query, a page at a time. Supabase returns at most 1,000 rows per request whatever limit is asked for,
+   so a single request silently drops the rest. The order must end with a unique column so pages never overlap or skip;
+   the offset moves on by the rows actually returned, and the read ends at the first empty page. A failed page fails
+   the whole read (api throws), so nothing partial is ever shown as complete. With `key`, a row seen twice (the table
+   changed between two pages) is kept once. */
+const PAGE = 500;
+async function apiAll(path, order, key){
+  const sep = path.includes("?") ? "&" : "?", out = [], seen = key ? new Set() : null;
+  for (let offset = 0, pages = 0; ; pages++){
+    if (pages > 2000) throw new Error("too many pages: " + path.split("?")[0]);
+    const rows = await api(path + sep + "order=" + order + "&limit=" + PAGE + "&offset=" + offset);
+    if (!Array.isArray(rows)) throw new Error("not a list: " + path.split("?")[0]);
+    if (!rows.length) return out;
+    offset += rows.length;
+    for (const r of rows){
+      if (seen){ if (seen.has(r[key])) continue; seen.add(r[key]); }
+      out.push(r);
+    }
+  }
+}
 
 /* ---------- data ---------- */
 const D = {brands:[], packBrands:{}, cats:[], catById:{}, qs:[], qById:{}, qstat:{}, fstat:{}, flags:[], feud:[], feudById:{}, feudStat:{}, party:[], games:[], rooms:[], accounts:null};
@@ -341,22 +361,23 @@ const statusTag = x => x.status === "verified" || x.status === "published" ? nul
 async function load(){
   $("load-msg").hidden = true;
   const since = new Date(Date.now() - 90 * 86400000).toISOString();
-  const [brands, bp, cats, qs, qst, fst, flags, feud, feudst, games] = await Promise.all([
-    api("/brands?select=id,slug,name,theme&order=created_at"),
-    api("/brand_packs?select=brand_id,pack_id"),
-    api("/categories?select=id,pack_id,slug,name,sort&order=sort"),
-    api("/questions?select=id,category_id,level,question,answer,accepted_answers,wrong_options,host_note,status,version,built_version,batch,updated_at&order=level&limit=10000"),
-    api("/admin_question_stats?select=*&limit=10000"),
-    api("/admin_feedback_stats?select=*&limit=10000"),
-    api("/flags?select=id,question_id,feud_round_id,game_id,note,status,created_at,item_version,resolution,resolved_at&order=created_at.desc&limit=1000"),
-    api("/feud_rounds?select=id,pack_id,prompt,level,answers,status,version,built_version&order=level&limit=5000"),
-    api("/admin_feud_stats?select=*&limit=5000"),
-    api("/games?select=id,brand_id,mode,started_at,ended_at,scores&started_at=gte." + encodeURIComponent(since) + "&order=started_at.desc&limit=10000")
+  // everything is read in full, page by page (see apiAll); the games stay limited to the last 90 days on purpose
+  const [brands, bp, cats, qs, qst, fst, flags, feud, feudst, games, party] = await Promise.all([
+    apiAll("/brands?select=id,slug,name,theme", "created_at.asc,id.asc", "id"),
+    apiAll("/brand_packs?select=brand_id,pack_id", "brand_id.asc,pack_id.asc"),
+    apiAll("/categories?select=id,pack_id,slug,name,sort", "sort.asc,id.asc", "id"),
+    apiAll("/questions?select=id,category_id,level,question,answer,accepted_answers,wrong_options,host_note,status,version,built_version,batch,updated_at", "level.asc,id.asc", "id"),
+    apiAll("/admin_question_stats?select=*", "question_id.asc", "question_id"),
+    apiAll("/admin_feedback_stats?select=*", "question_id.asc", "question_id"),
+    apiAll("/flags?select=id,question_id,feud_round_id,game_id,note,status,created_at,item_version,resolution,resolved_at", "created_at.desc,id.desc", "id"),
+    apiAll("/feud_rounds?select=id,pack_id,prompt,level,answers,status,version,built_version", "level.asc,id.asc", "id"),
+    apiAll("/admin_feud_stats?select=*", "round_id.asc", "round_id"),
+    apiAll("/games?select=id,brand_id,mode,started_at,ended_at,scores&started_at=gte." + encodeURIComponent(since), "started_at.desc,id.desc", "id"),
+    apiAll("/party_items?select=id,pack_id,kind,level,text,banned,status", "kind.asc,level.asc,id.asc", "id")
   ]);
   // rooms and accounts are extra: the rest of the page works without them
-  const [rooms, accounts, party] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null),
-    api("/party_items?select=id,pack_id,kind,level,text,banned,status&order=kind,level&limit=10000").catch(() => [])]);
-  D.party = Array.isArray(party) ? party : [];
+  const [rooms, accounts] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null)]);
+  D.party = party;
   D.rooms = Array.isArray(rooms) ? rooms : []; D.accounts = typeof accounts === "number" ? accounts : null;
   D.brands = brands; D.packBrands = {};
   bp.forEach(x => (D.packBrands[x.pack_id] = D.packBrands[x.pack_id] || []).push(x.brand_id));
@@ -452,11 +473,13 @@ function reportCard(g){
     h("div", null, h("h3",{class:"muted small"}, g.flags.length > 1 ? fmt(g.flags.length) + " بلاغات" : "البلاغ"), notes),
     h("div",{class:"actions"}, edit, restore, retire));
 }
+const LOAD_FAILED = "ماقدرناش نحمّل البيانات كلها، فاللي ظاهر ممكن يكون ناقص. اضغط «تحديث».";
 async function act(btn, fn){
   const all = btn.parentElement ? [...btn.parentElement.querySelectorAll("button")] : [btn];
   all.forEach(b => b.disabled = true);
-  try { await fn(); await load(); }
-  catch(e){ all.forEach(b => b.disabled = false); showLoadErr("ماقدرناش نحفظ. جرب تاني."); }
+  try { await fn(); }
+  catch(e){ all.forEach(b => b.disabled = false); showLoadErr("ماقدرناش نحفظ. جرب تاني."); return; }
+  try { await load(); } catch(e){ all.forEach(b => b.disabled = false); showLoadErr("اتحفظ. " + LOAD_FAILED); }
 }
 function showLoadErr(t){ const m = $("load-msg"); m.textContent = t; m.hidden = false; }
 
@@ -675,8 +698,8 @@ async function loadReviewExtras(ids){
   for (let i = 0; i < ids.length; i += 80){
     const part = ids.slice(i, i + 80).join(",");
     const [src, res] = await Promise.all([
-      api("/sources?select=question_id,url,title,checked_on&question_id=in.(" + part + ")").catch(() => []),
-      api("/research_items?select=question_id,verdict,notes&question_id=in.(" + part + ")").catch(() => [])]);
+      apiAll("/sources?select=id,question_id,url,title,checked_on&question_id=in.(" + part + ")", "question_id.asc,id.asc", "id").catch(() => []),
+      apiAll("/research_items?select=id,question_id,verdict,notes&question_id=in.(" + part + ")", "question_id.asc,id.asc", "id").catch(() => [])]);
     ids.slice(i, i + 80).forEach(id => { REV.sources[id] = []; REV.research[id] = []; });
     src.forEach(x => { if (REV.sources[x.question_id]) REV.sources[x.question_id].push(x); });
     res.forEach(x => { if (REV.research[x.question_id]) REV.research[x.question_id].push(x); });
@@ -744,23 +767,24 @@ function renderReview(){
    skipped, so the same file can be added again safely. */
 let RES_KEYS = null;   // src_md5 of the rows in the database
 let RES_MSG = null;    // the last import's message, kept across redraws of the tab
+let RES_FAILED = false; // the count could not be read
 function resSay(t, err){
   RES_MSG = {t, err:!!err};
   const m = $("res-msg"); if (m){ m.textContent = t; m.className = "msg" + (err ? " err" : " ok"); m.hidden = false; }
 }
 async function loadResearchKeys(){
-  const rows = await api("/research_items?select=src_md5&limit=20000");
+  const rows = await apiAll("/research_items?select=id,src_md5", "id.asc", "id");
   RES_KEYS = new Set(rows.map(r => r.src_md5).filter(Boolean));
   if (tab === "review") renderReview();
 }
 function researchPanel(){
-  if (RES_KEYS == null) loadResearchKeys().catch(() => { RES_KEYS = new Set(); });
+  if (RES_KEYS == null && !RES_FAILED) loadResearchKeys().then(() => { RES_FAILED = false; }, () => { RES_FAILED = true; if (tab === "review") renderReview(); });
   const msg = h("p",{class:"msg" + (RES_MSG ? (RES_MSG.err ? " err" : " ok") : ""),id:"res-msg",role:"status","aria-live":"polite",hidden:!RES_MSG}, RES_MSG ? RES_MSG.t : "");
   const input = h("input",{type:"file",accept:".json,application/json",id:"res-file"});
   input.addEventListener("change", () => { const f = input.files && input.files[0]; if (f) importResearch(f, input); });
   return h("div",{class:"panel",id:"res-panel"},
     h("div",{class:"hd"}, h("h2", null, "سجل الكتابة والمراجعة"),
-      h("span",{class:"muted small"}, RES_KEYS == null ? "بيحمّل…" : "في قاعدة البيانات " + fmt(RES_KEYS.size) + " عنصر: مسودات الكتّاب، وحكم المراجع وملاحظاته، واللي اترفض وسببه.")),
+      h("span",{class:"muted small"}, RES_FAILED ? "ماقدرناش نعرف عدد العناصر. اضغط «تحديث»." : RES_KEYS == null ? "بيحمّل…" : "في قاعدة البيانات " + fmt(RES_KEYS.size) + " عنصر: مسودات الكتّاب، وحكم المراجع وملاحظاته، واللي اترفض وسببه.")),
     h("div",{class:"bd"}, h("label",{class:"field"}, h("span", null, "إضافة ملف سجل البحث (research_….json)"), input), msg));
 }
 async function importResearch(file, input){
@@ -842,8 +866,10 @@ function footer(fromReport, onSave){
     msg.hidden = true;
     const err = onSave.check(); if (err){ msg.textContent = err; msg.hidden = false; return; }
     save.disabled = true;
-    try { await onSave.run(); closeDialog(); await load(); }
-    catch(e){ save.disabled = false; msg.textContent = "ماقدرناش نحفظ. جرب تاني."; msg.hidden = false; }
+    try { await onSave.run(); }
+    catch(e){ save.disabled = false; msg.textContent = "ماقدرناش نحفظ. جرب تاني."; msg.hidden = false; return; }
+    closeDialog();
+    try { await load(); } catch(e){ showLoadErr("اتحفظ. " + LOAD_FAILED); }
   });
   return h("div",{class:"foot"}, msg, h("button",{class:"btn",type:"button",onclick:closeDialog}, "إلغاء"), save);
 }
@@ -944,7 +970,7 @@ async function enter(){
   try { ok = await rpc("is_admin"); } catch(e){ ok = false; }
   if (ok !== true){ $("denied-who").textContent = sess.email; view("denied"); return; }
   $("who").textContent = sess.email; view("app"); setTab(tab);
-  try { await load(); } catch(e){ showLoadErr("ماقدرناش نحمّل البيانات. اضغط «تحديث»."); }
+  try { await load(); } catch(e){ showLoadErr(LOAD_FAILED); }
 }
 async function signOut(){
   try { if (sess) await authCall("logout", {}, sess.access); } catch(e){}
@@ -974,7 +1000,7 @@ $("f-signin").addEventListener("submit", async e => {
 });
 $("b-out").addEventListener("click", signOut);
 $("denied-out").addEventListener("click", signOut);
-$("b-reload").addEventListener("click", async () => { $("b-reload").disabled = true; try { await load(); } catch(e){ showLoadErr("ماقدرناش نحمّل البيانات."); } $("b-reload").disabled = false; });
+$("b-reload").addEventListener("click", async () => { $("b-reload").disabled = true; try { await load(); } catch(e){ showLoadErr(LOAD_FAILED); } $("b-reload").disabled = false; });
 for (const k of ["reports","review","questions","games","feud","brand"]) $("t-" + k).addEventListener("click", () => setTab(k));
 $("dlg").addEventListener("close", () => form.replaceChildren());
 
