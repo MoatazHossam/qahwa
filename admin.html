@@ -177,6 +177,27 @@ table.words td .actions{flex-wrap:nowrap}
 #p-brand .panel+.panel{margin-top:16px}
 .colors{display:flex;flex-wrap:wrap;gap:8px}
 .colors input{width:52px;height:40px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+/* pictures (image questions) */
+.thumb{width:56px;height:38px;object-fit:cover;border-radius:6px;background:var(--sunk);border:1px solid var(--line);vertical-align:middle;margin-inline-end:8px;float:inline-start}
+.pics{display:flex;flex-wrap:wrap;gap:12px;margin:0}
+.pics figure{margin:0;display:grid;gap:4px;max-width:min(320px,100%)}
+.pics img{display:block;max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line);background:var(--sunk)}
+.pics figcaption{font-size:.8rem;color:var(--muted)}
+.pic{border:1px dashed var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:8px}
+.picrow{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.picprev{width:150px;height:100px;border-radius:8px;background:var(--sunk);border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;color:var(--muted);font-size:.8rem;text-align:center;padding:4px}
+.picprev img{max-width:100%;max-height:100%;display:block}
+.picbtns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.picbtns input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.picurl{font-size:.85rem}
+.cropper{position:relative;display:inline-block;max-width:100%;overflow:hidden;border-radius:6px;touch-action:none;cursor:crosshair;user-select:none;line-height:0;justify-self:start}
+.pic>.btn{justify-self:start}
+.cropper img{display:block;max-width:100%;max-height:320px;border-radius:6px;pointer-events:none}
+.cropper .sel{position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.45);border-radius:2px;pointer-events:none}
+.cropper .sel[hidden]{display:none}
+.newq{margin-inline-start:auto;align-self:end}
+.check{display:flex;gap:8px;align-items:center;font-size:.92rem}
+.check[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -366,7 +387,7 @@ async function load(){
     apiAll("/brands?select=id,slug,name,theme", "created_at.asc,id.asc", "id"),
     apiAll("/brand_packs?select=brand_id,pack_id", "brand_id.asc,pack_id.asc"),
     apiAll("/categories?select=id,pack_id,slug,name,sort", "sort.asc,id.asc", "id"),
-    apiAll("/questions?select=id,category_id,level,question,answer,accepted_answers,wrong_options,host_note,status,version,built_version,batch,updated_at", "level.asc,id.asc", "id"),
+    apiAll("/questions?select=id,category_id,level,question,answer,accepted_answers,wrong_options,host_note,media_url,reveal_media_url,status,version,built_version,batch,updated_at", "level.asc,id.asc", "id"),
     apiAll("/admin_question_stats?select=*", "question_id.asc", "question_id"),
     apiAll("/admin_feedback_stats?select=*", "question_id.asc", "question_id"),
     apiAll("/flags?select=id,question_id,feud_round_id,game_id,note,status,created_at,item_version,resolution,resolved_at", "created_at.desc,id.desc", "id"),
@@ -484,7 +505,7 @@ async function act(btn, fn){
 function showLoadErr(t){ const m = $("load-msg"); m.textContent = t; m.hidden = false; }
 
 /* ---------- questions ---------- */
-const qFilter = {cat:"", level:"", status:"playable", q:"", sort:"shown"};
+const qFilter = {cat:"", level:"", status:"playable", q:"", sort:"shown", kind:""};
 let qPage = 1;
 function qRate(s){ if (!s) return null; const d = s.correct + s.wrong + s.nobody; return d ? s.correct / d : null; }
 function renderQuestions(){
@@ -511,8 +532,10 @@ function renderQuestions(){
     h("label",{class:"field grow"}, h("span", null, "بحث"), search),
     sel("qf-cat","الفئة", qFilter.cat, [["","كل الفئات"], ...cats.map(c => [c.id, c.name])], v => qFilter.cat = v),
     sel("qf-level","المستوى", qFilter.level, [["","كل المستويات"], ...[1,2,3,4,5].map(l => [String(l), "مستوى " + fmt(l)])], v => qFilter.level = v),
+    sel("qf-kind","النوع", qFilter.kind, [["","كل الأنواع"],["img","بصورة"],["text","كلام بس"]], v => qFilter.kind = v),
     sel("qf-status","الحالة", qFilter.status, [["playable","شغال"],["draft","مستني مراجعة"],["flagged","مسحوب"],["retired","ملغي"],["all","الكل"]], v => qFilter.status = v),
     sel("qf-sort","الترتيب", qFilter.sort, [["shown","الأكثر لعبًا"],["hard","الأصعب"],["easy","الأسهل"],["dislike","الأقل إعجابًا"],["skip","الأكثر تبديلًا"],["level","المستوى محتاج مراجعة"],["cat","الفئة والمستوى"]], v => qFilter.sort = v));
+  filters.append(h("button",{class:"btn primary newq",type:"button",id:"q-new",onclick:newQuestion}, "سؤال جديد"));
   const tablePanel = h("div",{class:"panel",id:"q-panel"}, h("div",{class:"bd"}, filters), h("div",{id:"q-table"}));
   box.replaceChildren(cap, tablePanel);
   renderQTable();
@@ -520,6 +543,8 @@ function renderQuestions(){
 function filteredQs(){
   const t = qFilter.q.trim();
   let list = D.qs.filter(q => inBrand(qBrands(q)) && (!qFilter.cat || q.category_id === qFilter.cat) && (!qFilter.level || q.level === Number(qFilter.level)));
+  if (qFilter.kind === "img") list = list.filter(q => okImg(q.media_url));
+  else if (qFilter.kind === "text") list = list.filter(q => !okImg(q.media_url));
   if (qFilter.status === "playable") list = list.filter(playable);
   else if (qFilter.status === "draft") list = list.filter(q => q.status === "draft");
   else if (qFilter.status === "flagged") list = list.filter(q => q.status === "flagged");
@@ -548,7 +573,7 @@ function renderQTable(){
     const s = D.qstat[q.id] || {}, f = D.fstat[q.id] || {}, r = qRate(s);
     const sug = f.avg_suggested == null ? null : Number(f.avg_suggested);
     return h("tr",{class:"click",tabindex:"0",onclick:() => editQuestion(q, false),onkeydown:e => { if (e.key === "Enter") editQuestion(q, false); }},
-      h("td",{class:"qcell"}, q.question, h("span",{class:"sub"}, q.answer)),
+      h("td",{class:"qcell"}, okImg(q.media_url) ? h("img",{class:"thumb",src:q.media_url,alt:"",loading:"lazy"}) : null, q.question, h("span",{class:"sub"}, q.answer)),
       h("td", null, catName(q.category_id), statusTag(q)),
       h("td",{class:"n"}, fmt(q.level)),
       h("td",{class:"n"}, fmt(s.shown || 0)),
@@ -727,6 +752,7 @@ function reviewQ(q){
   return h("article",{class:"report review","data-id":q.id},
     h("div",{class:"where"}, h("span", null, qBrands(q).map(brandName).join("، ")), h("span", null, catName(q.category_id)), h("span", null, "المستوى " + fmt(q.level)), q.batch ? h("span", null, q.batch) : null),
     h("p",{class:"q"}, q.question),
+    picsOf(q),
     h("dl",{class:"kv"},
       h("dt", null, "الإجابة"), h("dd", null, q.answer),
       q.accepted_answers && q.accepted_answers.length ? [h("dt", null, "مقبول كمان"), h("dd", null, q.accepted_answers.join("، "))] : null,
@@ -873,29 +899,169 @@ function footer(fromReport, onSave){
   });
   return h("div",{class:"foot"}, msg, h("button",{class:"btn",type:"button",onclick:closeDialog}, "إلغاء"), save);
 }
+/* ---------- pictures (image questions) ---------- */
+const MEDIA = "media";
+const okImg = u => typeof u === "string" && /^https:\/\/\S+$/.test(u);
+const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+// the question's picture and the answer's, side by side
+function picsOf(q){
+  if (!okImg(q.media_url)) return null;
+  return h("div",{class:"pics"},
+    h("figure", null, h("img",{src:q.media_url,alt:"صورة السؤال",loading:"lazy"}), h("figcaption", null, "صورة السؤال")),
+    okImg(q.reveal_media_url) ? h("figure", null, h("img",{src:q.reveal_media_url,alt:"صورة الإجابة",loading:"lazy"}), h("figcaption", null, "صورة الإجابة")) : null);
+}
+// a picture made smaller (at most `max` px on its long side, optionally only part of it) as WebP, or JPEG where the
+// browser cannot make WebP
+function picBlob(im, crop, max){
+  const sx = crop ? crop.x : 0, sy = crop ? crop.y : 0, sw = crop ? crop.w : im.naturalWidth, sh = crop ? crop.h : im.naturalHeight;
+  const k = Math.min(1, max / Math.max(sw, sh));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
+  const g = c.getContext("2d"); g.imageSmoothingQuality = "high";
+  g.drawImage(im, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return new Promise((res, rej) => c.toBlob(b => {
+    if (b && b.type === "image/webp") res(b);
+    else c.toBlob(j => j ? res(j) : rej(new Error("no image")), "image/jpeg", 0.88);
+  }, "image/webp", 0.86));
+}
+async function uploadPic(blob){
+  const ext = blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
+  const path = "q/" + new Date().toISOString().slice(0, 7) + "/" + newId() + "." + ext;
+  const go = async () => fetch(SB.base + "/storage/v1/object/" + MEDIA + "/" + path, {method:"POST",
+    headers:{"apikey":SB.key, "Authorization":"Bearer " + await token(), "Content-Type":blob.type, "cache-control":"max-age=31536000"}, body:blob});
+  let r = await go();
+  if (r.status === 401){ await refresh(); r = await go(); }
+  if (!r.ok) throw new Error("upload " + r.status);
+  return SB.base + "/storage/v1/object/public/" + MEDIA + "/" + path;
+}
+const PIC_TYPES = /^image\/(jpeg|png|webp|gif|avif|svg\+xml)$/;
+/* One picture in the editor: the saved one (a link), a file chosen here (uploaded on save), or none. With `cut`, part
+   of the photo can be marked by dragging on it: that part is the question's picture. */
+function picField(label, hint, url, cut){
+  const st = {url:okImg(url) ? url : null, im:null, obj:null, crop:null, from:null};
+  const prev = h("div",{class:"picprev"}), msg = h("p",{class:"msg err",hidden:true});
+  const file = h("input",{type:"file",accept:"image/jpeg,image/png,image/webp,image/gif,image/avif"});
+  const pick = h("label",{class:"btn"}, "ارفع صورة", file);
+  const clear = h("button",{class:"btn",type:"button"}, "شيل الصورة");
+  const link = h("input",{type:"url",class:"picurl",placeholder:"أو الصق رابط صورة يبدأ بـ https://",value:st.url || "","aria-label":label + ": رابط"});
+  const sel = h("div",{class:"sel",hidden:true}), cimg = h("img",{alt:""});
+  const cropper = h("div",{class:"cropper",hidden:true}, cimg, sel);
+  const cropNote = h("p",{class:"muted small",hidden:true}, "اسحب على الصورة وحدّد الجزء اللي يظهر في السؤال (زي العينين). من غير تحديد بتظهر الصورة كلها.");
+  const clearCrop = h("button",{class:"btn",type:"button",hidden:true}, "امسح التحديد");
+  const box = h("div",{class:"field pic"}, h("span", null, label),
+    h("div",{class:"picrow"}, prev, h("div",{class:"picbtns"}, pick, clear)), link,
+    cut ? [cropNote, cropper, clearCrop] : null, hint ? h("p",{class:"muted small"}, hint) : null, msg);
+  const api_ = {box, onCrop:null,
+    // the link to save: uploads a new picture first
+    async result(){
+      if (st.im) return uploadPic(await picBlob(st.im, st.crop, 1600));
+      return st.url;
+    },
+    has(){ return !!(st.im || st.url); },
+    cropped(){ return !!st.crop; },
+    image(){ return st.im; },
+    // set from another field's photo (the whole photo, for the answer)
+    setImage(im, obj){ st.im = im; st.obj = obj; st.url = null; st.crop = null; st.from = "other"; link.value = ""; draw(); },
+    clearIfFromOther(){ if (st.from === "other"){ st.im = null; st.obj = null; st.from = null; draw(); } },
+    bad(){ return link.value.trim() && !okImg(link.value.trim()) ? label + ": الرابط لازم يبدأ بـ https://" : ""; }
+  };
+  function draw(){
+    const src = st.obj || st.url;
+    prev.replaceChildren(src ? h("img",{src,alt:label}) : "مفيش صورة");
+    clear.hidden = !src;
+    if (cut){
+      const on = !!st.obj;
+      cropper.hidden = !on; cropNote.hidden = !on;
+      if (on && cimg.getAttribute("src") !== st.obj) cimg.src = st.obj;
+      sel.hidden = !st.crop; clearCrop.hidden = !st.crop;
+      if (st.crop && cimg.naturalWidth){
+        const k = cimg.clientWidth / cimg.naturalWidth;
+        Object.assign(sel.style, {left:st.crop.x * k + "px", top:st.crop.y * k + "px", width:st.crop.w * k + "px", height:st.crop.h * k + "px"});
+      }
+    }
+  }
+  file.addEventListener("change", async () => {
+    msg.hidden = true;
+    const f = file.files && file.files[0]; file.value = "";
+    if (!f) return;
+    if (!PIC_TYPES.test(f.type)){ msg.textContent = "الملف ده مش صورة."; msg.hidden = false; return; }
+    if (f.size > 25 * 1048576){ msg.textContent = "الصورة كبيرة قوي (أكتر من ٢٥ ميجا)."; msg.hidden = false; return; }
+    const obj = URL.createObjectURL(f), im = new Image();
+    im.src = obj;
+    try { await im.decode(); } catch(e){ msg.textContent = "ماقدرناش نفتح الصورة دي."; msg.hidden = false; return; }
+    if (st.obj && st.from !== "other") URL.revokeObjectURL(st.obj);
+    st.im = im; st.obj = obj; st.url = null; st.crop = null; st.from = "file"; link.value = "";
+    draw(); if (api_.onCrop) api_.onCrop();
+  });
+  clear.addEventListener("click", () => { st.im = null; st.obj = null; st.url = null; st.crop = null; st.from = null; link.value = ""; draw(); if (api_.onCrop) api_.onCrop(); });
+  link.addEventListener("input", () => {
+    const v = link.value.trim();
+    if (st.im){ st.im = null; st.obj = null; st.crop = null; st.from = null; }
+    st.url = okImg(v) ? v : null; draw(); if (api_.onCrop) api_.onCrop();
+  });
+  if (cut){
+    let start = null;
+    const at = e => { const r = cimg.getBoundingClientRect(); return [Math.min(Math.max(e.clientX - r.left, 0), r.width), Math.min(Math.max(e.clientY - r.top, 0), r.height)]; };
+    const toCrop = (a, b) => {
+      const k = cimg.naturalWidth / cimg.clientWidth;
+      const x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(a[0] - b[0]), hh = Math.abs(a[1] - b[1]);
+      return w < 12 || hh < 12 ? null : {x:Math.round(x * k), y:Math.round(y * k), w:Math.round(w * k), h:Math.round(hh * k)};
+    };
+    cropper.addEventListener("pointerdown", e => { if (!st.im) return; e.preventDefault(); start = at(e); cropper.setPointerCapture(e.pointerId); });
+    cropper.addEventListener("pointermove", e => { if (!start) return; st.crop = toCrop(start, at(e)); draw(); });
+    cropper.addEventListener("pointerup", e => { if (!start) return; st.crop = toCrop(start, at(e)); start = null; draw(); if (api_.onCrop) api_.onCrop(); });
+    clearCrop.addEventListener("click", () => { st.crop = null; draw(); if (api_.onCrop) api_.onCrop(); });
+    window.addEventListener("resize", draw);
+  }
+  draw();
+  return api_;
+}
+function newQuestion(){
+  const cats = D.cats.filter(c => inBrand(brandsOfPack(c.pack_id)));
+  if (!cats.length) return;
+  editQuestion({id:null, category_id:qFilter.cat && D.catById[qFilter.cat] ? qFilter.cat : cats[0].id, level:Number(qFilter.level) || 1, question:"", answer:"",
+    accepted_answers:[], wrong_options:[], host_note:null, media_url:null, reveal_media_url:null, status:"verified", version:1}, false);
+}
 function editQuestion(q, fromReport){
+  const isNew = !q.id;
   const s = D.qstat[q.id] || {}, f = D.fstat[q.id] || {};
   const wrong = (q.wrong_options || []).concat(["","",""]).slice(0, 3);
-  const srcBox = h("ol",{class:"srcs"}, h("li",{class:"muted"}, "بيحمّل المصادر…"));
+  const srcBox = h("ol",{class:"srcs"}, h("li",{class:"muted"}, isNew ? "مفيش مصادر لسه." : "بيحمّل المصادر…"));
   const resBox = h("div",{class:"checks"});
-  api("/research_items?select=verdict,notes,dir&question_id=eq." + q.id).then(rows => {
+  const qPic = picField("صورة السؤال (اختياري)", "لو حطيت صورة بتظهر كبيرة تحت السؤال على الشاشة وعلى الموبايلات. اكتب السؤال نفسه برضه، زي «ما الدولة المظلّلة على الخريطة؟».", q.media_url, true);
+  const rPic = picField("صورة الإجابة (اختياري)", "بتظهر مكان صورة السؤال لما الإجابة تظهر. من غيرها بتفضل صورة السؤال.", q.reveal_media_url, false);
+  const whole = h("input",{type:"checkbox",id:"e-whole",checked:true});
+  const wholeRow = h("label",{class:"check",hidden:true}, whole, " الصورة كاملة تظهر مع الإجابة");
+  const syncWhole = () => {
+    const on = qPic.cropped();
+    wholeRow.hidden = !on;
+    if (on && whole.checked) rPic.setImage(qPic.image(), qPic.image().src); else rPic.clearIfFromOther();
+  };
+  qPic.onCrop = syncWhole; whole.addEventListener("change", syncWhole);
+  const catSel = isNew ? h("label",{class:"field"}, h("span", null, "الفئة"), h("select",{id:"e-cat"},
+    D.cats.filter(c => inBrand(brandsOfPack(c.pack_id))).map(c => h("option",{value:c.id, selected:c.id === q.category_id ? true : null},
+      c.name + (brand === "all" ? " (" + brandsOfPack(c.pack_id).map(brandName).join("، ") + ")" : ""))))) : null;
+  if (!isNew) api("/research_items?select=verdict,notes,dir&question_id=eq." + q.id).then(rows => {
     resBox.replaceChildren(...rows.filter(r => r.verdict || r.notes).map(r => h("p", null, h("span",{class:"tag" + (r.verdict === "ok" ? " ok" : r.verdict === "fixed" ? " warn" : " bad")}, VERDICT[r.verdict] || r.verdict || "مراجعة"), " ", r.notes || "")));
   }).catch(() => {});
-  api("/sources?select=url,title,checked_on&question_id=eq." + q.id).then(rows => {
+  if (!isNew) api("/sources?select=url,title,checked_on&question_id=eq." + q.id).then(rows => {
     srcBox.replaceChildren(...(rows.length ? rows.map(r => h("li", null, h("a",{href:r.url,target:"_blank",rel:"noopener noreferrer"}, r.title || r.url), h("span",{class:"muted"}, " · اتراجع " + r.checked_on))) : [h("li",{class:"muted"}, "مفيش مصادر مسجلة.")]));
   }).catch(() => srcBox.replaceChildren(h("li",{class:"muted"}, "ماقدرناش نحمّل المصادر.")));
   openDialog([
-    h("div",{class:"hd"}, h("h2",{id:"dlg-title"}, fromReport ? "تعديل سؤال عليه بلاغ" : "تعديل سؤال"), h("span",{class:"muted small"}, catName(q.category_id) + " · إصدار " + fmt(q.version) + " · اتلعب " + fmt(s.shown || 0) + " · إعجاب " + fmt(f.likes || 0) + " / " + fmt(f.dislikes || 0))),
+    h("div",{class:"hd"}, h("h2",{id:"dlg-title"}, isNew ? "سؤال جديد" : fromReport ? "تعديل سؤال عليه بلاغ" : "تعديل سؤال"),
+      isNew ? null : h("span",{class:"muted small"}, catName(q.category_id) + " · إصدار " + fmt(q.version) + " · اتلعب " + fmt(s.shown || 0) + " · إعجاب " + fmt(f.likes || 0) + " / " + fmt(f.dislikes || 0))),
+    catSel,
     h("label",{class:"field"}, h("span", null, "السؤال"), h("textarea",{id:"e-q",rows:"3"}, q.question)),
+    qPic.box, wholeRow, rPic.box,
     h("div",{class:"row2"},
       h("label",{class:"field"}, h("span", null, "الإجابة"), h("input",{type:"text",id:"e-a",value:q.answer})),
       h("label",{class:"field"}, h("span", null, "إجابات مقبولة كمان (افصل بـ ،)"), h("input",{type:"text",id:"e-acc",value:(q.accepted_answers || []).join("، ")}))),
     h("div",{class:"field"}, h("span", null, "الاختيارات الغلط (لسباق السرعة)"), h("div",{class:"row3"}, wrong.map((w,i) => h("input",{type:"text",id:"e-w" + i,value:w,"aria-label":"اختيار غلط " + fmt(i + 1)})))),
     h("label",{class:"field"}, h("span", null, "ملاحظة للمقدم"), h("textarea",{id:"e-n",rows:"2"}, q.host_note || "")),
     h("div",{class:"row2"}, levelSelect("e-l", q.level), fromReport ? h("div") : statusSelect("e-s", q.status)),
-    h("div",{class:"field"}, h("span", null, "المصادر"), srcBox),
-    h("div",{class:"field review"}, resBox),
-    h("p",{class:"muted small"}, "التعديل بيوصل للعب من أول لعبة جديدة."),
+    isNew ? null : h("div",{class:"field"}, h("span", null, "المصادر"), srcBox),
+    isNew ? null : h("div",{class:"field review"}, resBox),
+    h("p",{class:"muted small"}, isNew ? "لو الحالة «شغال» السؤال بيدخل اللعب من أول لعبة جديدة. «مستني مراجعة» بيستناك في المراجعة." : "التعديل بيوصل للعب من أول لعبة جديدة."),
     footer(fromReport, {
       check(){
         const qq = $("e-q").value.trim(), a = $("e-a").value.trim(), w = [0,1,2].map(i => $("e-w" + i).value.trim());
@@ -903,12 +1069,23 @@ function editQuestion(q, fromReport){
         if (!a) return "اكتب الإجابة.";
         if (w.some(x => !x)) return "اكتب التلات اختيارات الغلط.";
         if (new Set([a, ...w]).size !== 4) return "الاختيارات لازم تبقى مختلفة عن بعض وعن الإجابة.";
+        const bad = qPic.bad() || rPic.bad(); if (bad) return bad;
+        if (rPic.has() && !qPic.has()) return "صورة الإجابة محتاجة صورة للسؤال.";
         return "";
       },
       async run(){
+        // pictures first: if an upload fails nothing is saved
+        const img = await qPic.result(), rimg = img ? await rPic.result() : null;
         const body = {question:$("e-q").value.trim(), answer:$("e-a").value.trim(), accepted_answers:splitList($("e-acc").value),
-          wrong_options:[0,1,2].map(i => $("e-w" + i).value.trim()), host_note:$("e-n").value.trim() || null, level:Number($("e-l").value)};
+          wrong_options:[0,1,2].map(i => $("e-w" + i).value.trim()), host_note:$("e-n").value.trim() || null, level:Number($("e-l").value),
+          media_url:img || null, reveal_media_url:rimg || null};
         if (!fromReport) body.status = $("e-s").value;
+        if (isNew){
+          Object.assign(body, {category_id:$("e-cat").value, language:"ar", dialect:"msa", family_safe:true, batch:"admin-" + new Date().toISOString().slice(0, 10)});
+          if (body.status === "verified") Object.assign(body, approvedBy());
+          await api("/questions", {method:"POST", body, prefer:"return=minimal"});
+          return;
+        }
         if (body.status === "verified" && q.status === "draft") Object.assign(body, approvedBy());
         await api("/questions?id=eq." + q.id, {method:"PATCH", body, prefer:"return=minimal"});
         if (fromReport) await rpc("admin_resolve", {p_kind:"question", p_item:q.id, p_action:"fixed"});

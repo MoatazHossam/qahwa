@@ -74,6 +74,10 @@ input:focus{outline:none;border-color:var(--brass)}
 .qmeta{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:.92rem}
 .qmeta b{color:var(--cream);font-weight:600}
 .qtext{margin:0;font-weight:600;font-size:1.25rem;line-height:1.55;text-wrap:balance}
+/* image questions: the picture under the question */
+.qimg{display:block;max-width:100%;max-height:36vh;width:auto;height:auto;margin:0 auto;border-radius:12px;background:var(--night);box-shadow:0 0 0 3px var(--brass)}
+.qimg[hidden]{display:none}
+.hcard .qimg{max-height:24vh}
 .bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;width:100%;background:var(--brass);transform-origin:right center;transition:transform .12s linear}
 .bar.warn i{background:var(--bad)}
@@ -693,6 +697,7 @@ body.hostm .me{display:none}
     <section class="view" id="v-buzz" hidden>
       <div class="qmeta"><span id="b-val"></span><b id="b-cat"></b></div>
       <p class="qtext" id="b-text"></p>
+      <img class="qimg" id="b-img" alt="صورة السؤال" hidden>
       <div class="opts bopts" id="b-opts" hidden></div>
       <form class="bform" id="b-form" hidden novalidate>
         <label for="b-in" id="b-in-l">اكتبوا إجابتكم</label>
@@ -732,6 +737,7 @@ body.hostm .me{display:none}
       <div class="card hcard">
         <p class="sub" id="h-cat"></p>
         <p class="qtext" id="h-q"></p>
+        <img class="qimg" id="h-img" alt="صورة السؤال" hidden>
         <div class="hans" id="h-ans" hidden>
           <p class="sub" id="h-ans-l">الإجابة</p>
           <strong id="h-a"></strong>
@@ -748,6 +754,7 @@ body.hostm .me{display:none}
     <section class="view" id="v-q" hidden>
       <div class="qmeta"><span id="q-n"></span><b id="q-cat"></b></div>
       <p class="qtext" id="q-text"></p>
+      <img class="qimg" id="q-img" alt="صورة السؤال" hidden>
       <div class="bar" id="q-bar"><i id="q-fill"></i></div>
       <p class="left" id="q-left"></p>
       <div class="opts" id="q-opts"></div>
@@ -769,6 +776,7 @@ body.hostm .me{display:none}
         <p class="big-ico" id="r-ico" aria-hidden="true"></p>
         <p class="lead" id="r-lead"></p>
         <p class="pts" id="r-pts"></p>
+        <img class="qimg" id="r-img" alt="صورة الإجابة" hidden>
         <div class="answer"><p class="sub" id="r-ans-l">الإجابة الصحيحة</p><strong id="r-ans"></strong></div>
         <p class="sub" id="r-rank"></p>
       </div>
@@ -1124,6 +1132,13 @@ function waitView(ico, title, sub, canLeave){
   setIco($("w-ico"), ico); $("w-title").textContent = title; $("w-sub").textContent = sub || "";
   $("w-leave").hidden = !canLeave; $("w-scores").hidden = true; $("w-two").hidden = true;
 }
+/* a picture from the screen's state: only https pictures, and the same picture is not loaded twice */
+function showImg(el, u){
+  const ok = typeof u === "string" && /^https:\/\/\S+$/.test(u);
+  el.hidden = !ok;
+  if (!ok){ el.removeAttribute("src"); return; }
+  if (el.getAttribute("src") !== u) el.src = u;
+}
 function render(){
   const p = last; if (!p) return;
   const q = p.q || null;
@@ -1163,6 +1178,7 @@ function questionView(q){
   $("q-n").textContent = "سؤال " + fmt(q.i + 1) + " من " + fmt(q.n);
   $("q-cat").textContent = q.cat || "";
   $("q-text").textContent = q.text || "";
+  showImg($("q-img"), q.img);
   const box = $("q-opts");
   box.dataset.k = qkey(q.i);
   box.replaceChildren(...(q.opts || []).map((t,k) => h("button",{class:"opt",type:"button",style:"--oc:var(--o" + k + ")",onclick:() => answer(q, k)},
@@ -1196,6 +1212,7 @@ function raceBuzzView(q){
   $("q-n").textContent = (q.party ? "كلمة " + fmt(q.pos || 1) + " من " + fmt(q.of || 1) : "سؤال " + fmt(q.i + 1) + " من " + fmt(q.n)) + "، " + fmt(q.val || 0) + " نقطة";
   $("q-cat").textContent = q.cat || "";
   $("q-text").textContent = q.text || "";
+  showImg($("q-img"), q.img);
   const box = $("q-opts");
   if (box.dataset.k !== q.key){
     box.dataset.k = q.key;
@@ -1246,6 +1263,7 @@ function resultView(q){
   else if (r){ $("r-ico").textContent = "✗"; $("r-lead").textContent = "إجابة خاطئة"; $("r-pts").textContent = r.pts ? fmtS(r.pts) : ""; }
   else { $("r-ico").textContent = "–"; $("r-lead").textContent = "لم تُجب عن هذا السؤال"; $("r-pts").textContent = ""; }
   $("r-ans-l").textContent = q.party ? "الكلمة" : "الإجابة الصحيحة";
+  showImg($("r-img"), q.rimg);
   $("r-ans").textContent = q.style === "buzz" ? (q.answer || "") : (q.opts && q.correct != null) ? q.opts[q.correct] : "";
   const mr = myRank();
   $("r-rank").textContent = mr ? "ترتيبك " + fmt(mr.pos) + " من " + fmt(mr.of) + "، مجموعك " + fmt(mr.score) + " نقطة" : "";
@@ -1385,6 +1403,7 @@ function boardQView(q, tid){
   $("b-cat").replaceChildren(...(q.slug ? [iconEl(q.slug)] : []), q.cat || "");
   $("b-val").textContent = fmt((q.val || 0) * (q.dbl && q.dbl === q.answerer ? 2 : 1)) + " نقطة";
   $("b-text").textContent = q.text || "";
+  showImg($("b-img"), q.img);
   twoBtn($("b-two"), q, tid);
   { const el = $("b-ch"), can = !!(last && last.helps && q.canOpts && q.answerer === tid && myHelps(tid).includes("opts"));
     el.hidden = !can;
@@ -1580,6 +1599,7 @@ function renderHost(){
   $("h-head").textContent = c.head || "";
   $("h-cat").textContent = c.cat || ""; $("h-cat").hidden = !c.cat;
   $("h-q").textContent = c.text || "";
+  showImg($("h-img"), c.img);
   $("h-ans").hidden = !c.big;
   $("h-ans-l").textContent = c.alabel || "الإجابة";
   $("h-a").textContent = c.big || "";

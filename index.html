@@ -213,6 +213,18 @@ button.cell:hover{transform:translateY(-2px);filter:brightness(1.12)}
 .qv{font-family:var(--f-display);font-size:clamp(1.4rem,2.6vw,2.2rem);color:var(--brass);line-height:1}
 .dd{font-family:var(--f-display);background:var(--brass);color:var(--brass-ink);padding:6px 16px 4px;border-radius:999px;font-size:1.15rem;line-height:1.2}
 .qtext{margin:0;font-weight:600;font-size:clamp(1.5rem,3.8vw,3.1rem);line-height:1.5;text-wrap:balance;max-width:22em;color:var(--cream)}
+/* image questions: the picture under the question; the answer's picture (when there is one) takes its place on reveal */
+.qimg{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px;max-width:100%}
+.qimg[hidden]{display:none}
+.qimg img{display:block;max-width:100%;width:auto;height:auto;max-height:min(46vh,560px);border-radius:16px;background:var(--panel);box-shadow:0 0 0 4px var(--brass),0 12px 34px var(--shadow)}
+.qimg img:not([src]){display:none}
+.qimg .ri,.qimg-err{display:none}
+.qcard.revealed .qimg.has-r .qi,.qimg.has-r.rev .qi{display:none}
+.qcard.revealed .qimg.has-r .ri,.qimg.has-r.rev .ri{display:block}
+.qimg.bad .qimg-err{display:block;margin:0;color:var(--bad);font-weight:600}
+.qimg.bad img{display:none}
+.rcard .qimg img{max-height:min(42vh,520px)}
+.qcard.has-img .qtext,.rcard.has-img .qtext{font-size:clamp(1.25rem,2.8vw,2.3rem)}
 .qtimer{position:relative;width:100px;height:100px;border:0;padding:0;background:transparent;cursor:pointer;border-radius:50%}
 .qtimer svg{width:100%;height:100%;transform:rotate(-90deg);display:block}
 .qtimer .trk{stroke:var(--ring-track)}
@@ -1087,6 +1099,7 @@ body.hostm .me{display:none}
   <div class="rcard">
     <div class="rtop"><span id="r-n"></span><span class="qc" id="r-cat"></span><span class="qv" id="r-val" hidden></span><span>الغرفة <b id="r-code2"></b></span></div>
     <p class="qtext" id="r-q"></p>
+    <figure class="qimg" id="r-img" hidden><img class="qi" id="r-imgq" alt="صورة السؤال"><img class="ri" id="r-imgr" alt="صورة الإجابة"><figcaption class="qimg-err">تعذّر تحميل الصورة.</figcaption></figure>
     <p class="rsub" id="r-sub" hidden></p>
     <div class="rhost" id="r-hostbox" hidden>
       <p id="r-hosttxt"></p>
@@ -1138,6 +1151,7 @@ body.hostm .me{display:none}
     <p class="qstamp qsurprise" id="q-surprise" hidden aria-live="assertive"></p>
     <p class="qhelp" id="q-help" hidden></p>
     <p class="qtext" id="q-text"></p>
+    <figure class="qimg" id="q-img" hidden><img class="qi" id="q-imgq" alt="صورة السؤال"><img class="ri" id="q-imgr" alt="صورة الإجابة"><figcaption class="qimg-err">تعذّر تحميل الصورة. يمكنكم طلب سؤال آخر.</figcaption></figure>
     <div class="qparty" id="q-party" hidden>
       <p class="qp-rule" id="qp-rule"></p>
       <p class="qp-type" id="qp-type" hidden></p>
@@ -2361,6 +2375,7 @@ function renderBoard(){
   const g = state.game;
   if (!g){ boardEl.replaceChildren(); scoresEl.replaceChildren(); turnEl.replaceChildren(); return; }
   boardEl.style.setProperty("--cols", g.cats.length);
+  g.cats.forEach(c => (c.cells || []).forEach(id => { const r = id && BY_ID[id]; if (r) preloadQ(r.q); }));
   const kids = [];
   g.cats.forEach((c,ci) => kids.push(h("div",{class:"plate cat",style:"--i:" + ci}, iconEl(c.slug,"ico cat-ico"), h("span",{class:"cat-name"}, c.name))));
   VALUES.forEach((v,ri) => g.cats.forEach((c,ci) => {
@@ -2584,6 +2599,29 @@ function renderSound(){ const b = $("b-sound"); b.setAttribute("aria-pressed", S
 
 /* ===== question ===== */
 let cur = null, T = null;
+/* image questions: q.img is shown with the question, q.rimg (optional) with the answer. Only https pictures are shown.
+   Pictures are fetched ahead (the board's cells, the race's next questions) so they are there when the question opens. */
+const okImg = u => typeof u === "string" && /^https:\/\/\S+$/.test(u);
+const IMG_KEEP = new Map();
+function preloadImg(u){
+  if (!okImg(u) || IMG_KEEP.has(u)) return;
+  const im = new Image(); im.decoding = "async"; im.src = u; IMG_KEEP.set(u, im);
+  if (IMG_KEEP.size > 160) IMG_KEEP.delete(IMG_KEEP.keys().next().value);
+}
+function preloadQ(q){ if (q && !q.party){ preloadImg(q.img); preloadImg(q.rimg); } }
+function setQImg(pre, q, rev){
+  const fig = $(pre + "-img"), img = q && !q.party && okImg(q.img) ? q.img : null, rimg = img && okImg(q.rimg) ? q.rimg : null;
+  const a = $(pre + "-imgq"), b = $(pre + "-imgr");
+  if (a.getAttribute("src") !== img){ fig.classList.remove("bad"); if (img) a.src = img; else a.removeAttribute("src"); }
+  if (b.getAttribute("src") !== rimg){ if (rimg) b.src = rimg; else b.removeAttribute("src"); }
+  fig.hidden = !img; fig.classList.toggle("has-r", !!rimg); fig.classList.toggle("rev", !!rev);
+  fig.parentElement.classList.toggle("has-img", !!img);
+}
+["q-imgq","q-imgr","r-imgq","r-imgr"].forEach(id => {
+  const im = $(id);
+  im.addEventListener("error", () => { if (im.getAttribute("src")) im.closest("figure").classList.add("bad"); });
+  im.addEventListener("load", () => im.closest("figure").classList.remove("bad"));
+});
 function altFor(g, ci, ri){
   const c = BY_SLUG[g.cats[ci].slug], curId = g.cats[ci].cells[ri], flagged = new Set(state.flagged);
   const l = ri + 1;
@@ -2593,6 +2631,7 @@ function fillQuestion(){
   const g = state.game, rec = cellQ(g, cur.ci, cur.ri), pk = rec.q.party;
   // a party word is never on screen before it is played: the text says what to do, the word waits in q-a (hidden)
   $("q-text").textContent = pk ? PARTY_KIND[pk].head : rec.q.q;
+  setQImg("q", pk ? null : rec.q);
   $("q-a").textContent = rec.q.a;
   $("q-note").textContent = pk === "describe" ? "الكلمات الممنوعة: " + rec.q.ban.join("، ") : pk === "act" ? "النوع: " + ACT_TYPE[rec.q.l] : (rec.q.note || "");
   $("q-party").hidden = !pk;
@@ -3206,6 +3245,7 @@ function publicState(){
     const rec = BY_ID[rd.qid], pk = rec.q.party;
     s.q = {i:R.i, n:R.rounds.length, cat:rec.cat.name, text:raceText(rec.q), opts:bz ? null : rd.opts, limit:R.time * 1000, style:s.style};
     if (pk){ s.q.party = pk; s.q.pos = segPos(R, R.i); s.q.of = segCount(R, pk); }
+    else if (okImg(rec.q.img)){ s.q.img = rec.q.img; if (R.phase === "reveal" && okImg(rec.q.rimg)) s.q.rimg = rec.q.rimg; }
     if (bz) s.q.val = raceVal(R);
     if (R.phase === "question"){
       s.q.remain = bz && R.buzz ? R.left : Math.max(0, R.endsAt - Date.now()); s.q.answered = Object.keys(R.answers);
@@ -3430,6 +3470,7 @@ function renderRaceQ(){
     $("r-n").textContent = "فقرة جديدة: " + wWord(segCount(R, k));
     $("r-cat").textContent = K.name; $("r-val").hidden = true;
     $("r-q").textContent = K.name; $("r-q").classList.remove("rword");
+    setQImg("r", null);
     $("r-sub").hidden = false; $("r-sub").textContent = K.rule;
     ["r-buzz","r-judge","r-ans","r-opts","r-timer","r-stand","r-now","r-hostbox"].forEach(id => { $(id).hidden = true; });
     $("r-note").textContent = ""; $("r-count").textContent = "";
@@ -3455,6 +3496,8 @@ function renderRaceQ(){
   // «كلمات معكوسة»: the word is never on this screen; «حط الكلمة في أغنية»: the word is the question
   $("r-q").textContent = pk === "reverse" ? "المقدّم هيقول كلمة بالمقلوب" : pk === "song_word" ? rec.q.w : rec.q.q;
   $("r-q").classList.toggle("rword", pk === "song_word");
+  setQImg("r", pk ? null : rec.q, rev);
+  [1, 2].forEach(k => { const nx = R.rounds[R.i + k]; if (nx && BY_ID[nx.qid]) preloadQ(BY_ID[nx.qid].q); });
   $("r-sub").hidden = !pk;
   if (pk) $("r-sub").textContent = pk === "reverse" ? "أول واحد يضغط ويقول الكلمة صح يكسب." : "أول واحد يضغط يغني مقطع من أغنية فيها الكلمة دي.";
   $("r-hostbox").hidden = !(pk === "reverse" && !rev);
@@ -3639,8 +3682,10 @@ function bPublic(){
       style:cur.opts ? "pick" : "type", opts:cur.opts ? cur.opts.map(o => o.t) : null, cut:cur.cut,
       sub:cur.sub ? {team:cur.sub.team, c:cur.sub.c != null ? cur.sub.c : null, texts:cur.sub.texts || null, none:!!cur.sub.none} : null,
       canOpts:!!(cur.answerer && canOpts(cur.answerer)), optsBy:cur.optsBy || null, dd:!!cur.dd, minus:cur.minus || null};
+    if (okImg(rec.q.img)) s.q.img = rec.q.img;
     if (bPhase === "reveal"){
       s.q.answer = rec.q.a;
+      if (okImg(rec.q.img) && okImg(rec.q.rimg)) s.q.rimg = rec.q.rimg;
       if (cur.opts) s.q.correct = cur.opts.findIndex(o => o.ok);
       if (cur.sub && (cur.opts || cur.sub.ok)) s.q.ok = !!cur.sub.ok;
     }
@@ -3830,6 +3875,7 @@ function hCtx(){
     const q = cellQ(g, cur.ci, cur.ri).q, pk = q.party, nm = tnm(cur.answerer);
     const c = {head:"لوحة الفئات، " + fmt(cur.dbl ? valFor(cur.dbl) : cur.value) + " نقطة، " + nm + (cur.dbl ? "، دبل" : "") + (cur.dd ? "، سؤال مضاعف" : "") + (cur.minus ? "، اتخصم ١٠٠" : ""), cat:g.cats[cur.ci].name,
       text:pk ? PARTY_KIND[pk].rule : q.q, alabel:pk ? "الكلمة" : "الإجابة", big:q.a,
+      img:!pk && okImg(q.img) ? (cur.revealed && okImg(q.rimg) ? q.rimg : q.img) : null,
       extra:pk === "describe" ? "ممنوع: " + q.ban.join("، ") : pk === "act" ? "النوع: " + ACT_TYPE[q.l] : [q.note || "", Array.isArray(q.alt) && q.alt.length ? "مقبول كمان: " + q.alt.join("، ") : ""].filter(Boolean).join(" "),
       list:cur.opts ? cur.opts.map(o => ({t:o.t, on:o.ok})) : null, status:""};
     let acts = [];
@@ -3852,6 +3898,7 @@ function hCtx(){
     const rd = R.rounds[R.i], q = BY_ID[rd.qid].q, pk = q.party, bz = R.style === "buzz", rev = R.phase === "reveal";
     const c = {head:(pk ? "كلمة " + fmt(segPos(R, R.i)) + " من " + fmt(segCount(R, pk)) : "سؤال " + fmt(R.i + 1) + " من " + fmt(R.rounds.length)) + (bz ? "، " + fmt(raceVal(R)) + " نقطة" : ""),
       cat:BY_ID[rd.qid].cat.name, text:pk === "reverse" ? "قول الكلمة دي بالمقلوب:" : pk === "song_word" ? "الكلمة على الشاشة، واللي يضغط يغني:" : q.q,
+      img:!pk && okImg(q.img) ? (rev && okImg(q.rimg) ? q.rimg : q.img) : null,
       alabel:pk === "reverse" ? "قولها كده" : pk ? "الكلمة" : "الإجابة", big:pk === "reverse" ? revWord(q.w) : q.a,
       extra:pk === "reverse" ? "الحروف: " + [...revWord(q.w)].filter(ch => ch !== " ").join(" ") + "، والكلمة نفسها: «" + q.w + "»" : (!pk && q.note) || "",
       list:bz ? null : rd.opts.map((t,k) => ({t, on:k === rd.correct})),
