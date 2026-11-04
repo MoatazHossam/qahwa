@@ -2229,6 +2229,7 @@ function renderSetupInner(){
   // who runs the game: the host (who reads and judges), or the system (the team picks from four choices on a phone)
   $("manage-row").hidden = !RACE_OK;
   if (!RACE_OK && st.manage === "auto") st.manage = "host";
+  if (st.manage === "auto" && !st.phones) st.manage = "host";   // the system runs the game only with the phones
   renderSeg($("seg-manage"), [["host","المقدّم"],["auto","النظام"]], st.manage === "auto" ? "auto" : "host", v => {
     st.manage = v; if (v === "auto"){ st.phones = true; if (!st.time) st.time = 30; }
     save(); renderSetup(); if (state.game) renderBoard(); bPush(true);
@@ -3355,6 +3356,7 @@ function renderLobby(){
   $("r-plan").textContent = "السباق: " + qWord(nq) + "، و" + fmt(R.time) + " ثانية لكل سؤال." + (R.style === "buzz" ? " أول من يضغط يجاوب." : "") +
     (segs.length ? " وبعدها " + segs.map(k => "«" + PARTY_KIND[k].name + "» (" + wWord(segCount(R, k)) + ")").join(" ثم ") + "." : "");
   $("r-start").textContent = R.phase === "final" ? "سباق جديد" : "ابدأوا السباق";
+  $("r-close").textContent = "أغلقوا الغرفة";
   setMsg($("r-msg"), "");
   renderRacePlayers(); renderConn();
 }
@@ -3608,7 +3610,8 @@ function confirmTap(btn, label, fn){
    the next question from a phone. With the buzzer on, the first team to press answers. The screen stays the
    referee and judges as before. */
 let bRoom = null, bConn = "", bSeq = 0, bSendT = 0, bPulse = 0, bPhase = "lobby", bLast = null;
-const phonesOn = () => RACE_OK && !!state.settings.phones;
+// the phones for the board: the setting, unless the host closed the room during this game (that game only)
+const phonesOn = () => RACE_OK && !!state.settings.phones && !(state.game && state.game.noPhones);
 function teamOf(id){ const i = state.teams.findIndex(t => t.id === id); return i < 0 ? null : {t:state.teams[i], i}; }
 function drawJoin(code){
   $("r-code").textContent = code;
@@ -3643,8 +3646,14 @@ function closeBoardRoom(quiet){
 }
 function stopBoardPhones(){
   closeBoardRoom();
-  state.settings.phones = false; save(); renderSetup();
-  if (state.game){ renderBoard(); show("board"); } else show("setup");
+  if (!state.game){ state.settings.phones = false; save(); renderSetup(); show("setup"); return; }
+  // this game goes on without phones; the settings stay, so the next game opens a room again
+  const wasAuto = autoOn();
+  state.game.noPhones = true; save();
+  renderBoard(); show("board");
+  setMsg($("board-msg"), wasAuto
+    ? "تُكمَل هذه اللعبة من دون موبايلات، فالمقدّم يحكم ولا تظهر الاختيارات الأربعة تلقائيًا. في اللعبة التالية تُفتح الغرفة من جديد."
+    : "تُكمَل هذه اللعبة من دون موبايلات. في اللعبة التالية تُفتح الغرفة من جديد.");
 }
 function bKey(){
   const g = state.game; if (!g || !cur) return "";
@@ -3772,6 +3781,7 @@ function onBoardPhone(ev, p){
   }
 }
 function renderBuzz(){ renderQHelp(); }
+const BOARD_CLOSE = "أكملوا من دون موبايلات";
 function renderBoardLobby(){
   const R = state.broom; if (!R || state.mode !== "board" || scrLobby.hidden) return;
   drawJoin(R.code);
@@ -3797,6 +3807,7 @@ function renderBoardLobby(){
   }));
   $("r-pcount").textContent = fmt(list.length);
   $("r-start").textContent = state.game && Object.keys(state.game.used).length ? "ارجعوا إلى اللوحة" : "ابدأوا اللعب";
+  $("r-close").textContent = BOARD_CLOSE;
   setMsg($("r-msg"), "");
   renderConn();
 }
@@ -4229,7 +4240,12 @@ function bind(){
     if (phonesOn()){ openBoardRoom(); bPhase = "idle"; bPush(true); }
     renderBoard(); show("board"); renderRoomChip();
   });
-  $("opt-phones").addEventListener("change", e => { state.settings.phones = e.target.checked; if (!state.settings.phones && state.broom) closeBoardRoom(); save(); renderSetup(); });
+  $("opt-phones").addEventListener("change", e => {
+    state.settings.phones = e.target.checked;
+    if (state.game) delete state.game.noPhones;   // the setting decides again, for this game too
+    if (!state.settings.phones && state.broom) closeBoardRoom();
+    save(); renderSetup();
+  });
   $("b-room").addEventListener("click", showBoardLobby);
   document.querySelectorAll("#modes [data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
   $("r-start").addEventListener("click", () => {
@@ -4238,7 +4254,7 @@ function bind(){
   });
   $("r-close").addEventListener("click", e => {
     if (state.mode === "race"){ if (state.race && Object.keys(state.race.players).length) confirmTap(e.currentTarget, "أغلقوا الغرفة", closeRoom); else closeRoom(); return; }
-    if (state.broom && Object.keys(state.broom.players).length) confirmTap(e.currentTarget, "أغلقوا الغرفة", stopBoardPhones); else stopBoardPhones();
+    if (state.broom && Object.keys(state.broom.players).length) confirmTap(e.currentTarget, BOARD_CLOSE, stopBoardPhones); else stopBoardPhones();
   });
   $("r-next").addEventListener("click", nextRaceQ);
   $("r-now").addEventListener("click", revealRace);
