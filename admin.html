@@ -397,8 +397,10 @@ async function load(){
     apiAll("/party_items?select=id,pack_id,kind,level,text,banned,status", "kind.asc,level.asc,id.asc", "id")
   ]);
   // rooms and accounts are extra: the rest of the page works without them
-  const [rooms, accounts] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null)]);
+  const [rooms, accounts, who] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null),
+    apiAll("/venue_who_prompts?select=id,ar,ar_std,en,status,shown_n,skipped_n", "created_at.asc,id.asc", "id").catch(() => [])]);
   D.party = party;
+  D.who = Array.isArray(who) ? who : [];
   D.rooms = Array.isArray(rooms) ? rooms : []; D.accounts = typeof accounts === "number" ? accounts : null;
   D.brands = brands; D.packBrands = {};
   bp.forEach(x => (D.packBrands[x.pack_id] = D.packBrands[x.pack_id] || []).push(x.brand_id));
@@ -709,7 +711,9 @@ const REV = {sources:{}, research:{}};
 function drafts(){
   return {qs:D.qs.filter(q => q.status === "draft" && inBrand(qBrands(q))),
     rs:D.feud.filter(r => r.status === "draft" && inBrand(brandsOfPack(r.pack_id))),
-    ps:D.party.filter(p => p.status === "draft" && inBrand(brandsOfPack(p.pack_id)))};
+    ps:D.party.filter(p => p.status === "draft" && inBrand(brandsOfPack(p.pack_id))),
+    // «مين يعرف الطاولة أكتر؟» in the cafés: not tied to a brand, so shown whatever the brand
+    ws:(D.who || []).filter(w => w.status === "draft")};
 }
 // approve or reject a list of items, a hundred at a time
 async function setStatus(table, ids, status){
@@ -770,8 +774,42 @@ function reviewRound(r){
     h("ol",{class:"answers"}, (r.answers || []).map(a => h("li", null, h("span",{class:"pts num"}, fmt(a.pts)), h("span", null, a.text)))),
     decide("feud_rounds", r, () => editRound(r, false)));
 }
+// a question of «مين يعرف الطاولة أكتر؟» (the cafés' conversation game): its three wordings, how often tables got it
+// and how often players skipped it
+const times = n => n === 1 ? "مرة" : n === 2 ? "مرتين" : fmt(n) + (n <= 10 ? " مرات" : " مرة");
+function reviewWho(w){
+  return h("article",{class:"report review","data-id":w.id},
+    h("div",{class:"where"}, h("span", null, "مين يعرف الطاولة أكتر؟ (المقاهي)"),
+      h("span", null, w.shown_n ? "ظهر " + times(w.shown_n) : "لسه ما ظهرش"),
+      w.shown_n ? h("span", null, w.skipped_n ? "اتخطّوه " + times(w.skipped_n) : "محدش اتخطّاه") : null),
+    h("p",{class:"q"}, w.ar),
+    h("dl",{class:"kv"}, h("dt", null, "بالفصحى"), h("dd", null, w.ar_std), h("dt", null, "بالإنجليزي"), h("dd",{dir:"ltr",style:"text-align:right"}, w.en)),
+    decide("venue_who_prompts", w, () => editWho(w)));
+}
+function editWho(w){
+  const fld = (id, label, val, ltr) => h("label",{class:"field"}, h("span", null, label), h("input",{type:"text",id,value:val,maxlength:"120",dir:ltr ? "ltr" : null}));
+  openDialog([
+    h("div",{class:"hd"}, h("h2",{id:"dlg-title"}, "تعديل سؤال «مين يعرف الطاولة أكتر؟»")),
+    h("p",{class:"muted small"}, "سؤال خفيف بيتجاوب باختيار حد من اللي على الطاولة. بعيد عن الفلوس والشكل والعلاقات والدين والصحة وأي حاجة تحرج."),
+    fld("w-ar", "بالمصري", w.ar), fld("w-std", "بالفصحى (للمقاهي اللي لغتها فصحى)", w.ar_std), fld("w-en", "بالإنجليزي", w.en, true),
+    h("label",{class:"field"}, h("span", null, "الحالة"), h("select",{id:"w-s"}, [["verified","شغال"],["draft","مستني مراجعة"],["retired","ملغي"]]
+      .map(([v,l]) => h("option",{value:v, selected:w.status === v ? true : null}, l)))),
+    footer(false, {
+      check(){
+        const v = ["w-ar","w-std","w-en"].map(id => $(id).value.trim());
+        if (v.some(x => x.length < 8 || x.length > 120)) return "كل صيغة من ٨ لـ ١٢٠ حرف.";
+        if (D.who.some(x => x.id !== w.id && x.en.trim().toLowerCase() === v[2].toLowerCase())) return "فيه سؤال تاني بنفس الصيغة الإنجليزي.";
+        return "";
+      },
+      async run(){
+        await api("/venue_who_prompts?id=eq." + w.id, {method:"PATCH", prefer:"return=minimal",
+          body:{ar:$("w-ar").value.trim(), ar_std:$("w-std").value.trim(), en:$("w-en").value.trim(), status:$("w-s").value, updated_at:new Date().toISOString()}});
+      }
+    })
+  ]);
+}
 function renderReview(){
-  const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length;
+  const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length + R.ws.length;
   $("c-review").textContent = fmt(n); $("c-review").classList.toggle("alert", n > 0);
   if (!n){ box.replaceChildren(h("div",{class:"panel"}, h("div",{class:"hd"}, h("h2", null, "المراجعة")),
     h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها.")), researchPanel()); return; }
@@ -780,6 +818,7 @@ function renderReview(){
   const parts = [h("div",{class:"hd"}, h("h2", null, "مستني مراجعة"), h("span",{class:"muted small"}, "اللي تعتمده بيبقى في اللعبة الجاية على طول. عدّل لو محتاج، أو ارفض."))];
   if (R.qs.length) parts.push(bulkBar("أسئلة", R.qs.length, "questions", R.qs.map(q => q.id)), ...R.qs.map(reviewQ));
   if (R.rs.length) parts.push(bulkBar("جولات أشهر إجابة", R.rs.length, "feud_rounds", R.rs.map(r => r.id)), ...R.rs.map(reviewRound));
+  if (R.ws.length) parts.push(bulkBar("أسئلة «مين يعرف الطاولة أكتر؟» في المقاهي (اللعبة مش ظاهرة إلا لما تعتمد سؤال واحد على الأقل)", R.ws.length, "venue_who_prompts", R.ws.map(w => w.id)), ...R.ws.map(reviewWho));
   if (R.ps.length) parts.push(bulkBar("كلمات الفقرات", R.ps.length, "party_items", R.ps.map(p => p.id)),
     h("div",{class:"tbl-wrap"}, h("table",{class:"words"},
       h("thead", null, h("tr", null, h("th", null, "الكلمة"), h("th", null, "الفقرة"), h("th",{class:"n"}, "المستوى"), h("th", null, "ممنوع يتقال"), h("th", null, ""))),
