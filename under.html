@@ -449,7 +449,12 @@ const nf = new Intl.NumberFormat("ar-EG");
 const fmt = n => nf.format(n);
 const fmtS = n => (n > 0 ? "+" : n < 0 ? "−" : "") + nf.format(Math.abs(n));
 const calm = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(e){ return false; } };
-const LS = "qahwa-ut:v1";
+// testing alone (under-test.html): ?seat gives this copy its own storage, ?bot=1 makes it play by itself
+const Q = new URLSearchParams(location.search);
+const SEAT = (Q.get("seat") || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24);
+const BOT = Q.get("bot") === "1", FAST = Q.get("speed") === "fast", CREATE = Q.get("create") === "1";
+const QNAME = (Q.get("name") || "").slice(0, 20), WANT = Q.get("size") === "8" ? 8 : 6;
+const LS = "qahwa-ut:v1" + (SEAT ? ":" + SEAT : "");
 const store = {
   get(){ try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch(e){ return {}; } },
   set(o){ try { localStorage.setItem(LS, JSON.stringify(o)); } catch(e){} }
@@ -503,7 +508,7 @@ async function refresh(){
 function loop(){
   clearTimeout(pollT);
   if (!code || !token) return;
-  if (document.visibilityState !== "visible"){ pollT = setTimeout(loop, 3000); return; }
+  if (document.visibilityState !== "visible" && !BOT){ pollT = setTimeout(loop, 3000); return; }
   refresh().finally(() => { pollT = setTimeout(loop, 3000); });
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") loop(); });
@@ -521,6 +526,7 @@ async function act(fn, extra, btn){
 }
 function enter(c, t, v){
   code = c; token = t;
+  try { if (window.parent !== window) window.parent.postMessage({ut:"room", code:c, seat:SEAT, bot:BOT}, location.origin); } catch(e){}
   saved.seats[c] = {token:t}; keep();
   try { history.replaceState(null, "", "#" + c); } catch(e){ location.hash = c; }
   setView(v); connect(); ping(); loop();
@@ -541,7 +547,7 @@ function showStart(c){
   $("join-code-f").hidden = !!c;
   $("join-h").textContent = c ? "ادخل غرفة " + c : "ادخل غرفة";
   $("f-create").hidden = !!c;
-  $("in-name").value = saved.name || ""; $("in-hname").value = saved.name || "";
+  $("in-name").value = QNAME || saved.name || ""; $("in-hname").value = QNAME || saved.name || "";
   (c ? $("in-name") : $("in-code")).focus();
 }
 $("f-join").addEventListener("submit", async e => {
@@ -589,7 +595,7 @@ function render(){
   const m = M(), ph = V.phase, cur = m && m.cur;
   // who am I
   const who = $("who"); who.hidden = false;
-  who.replaceChildren(...[av(V.me, "sm"), h("b", null, nm(V.me)), isHost() ? h("span",{class:"badge"}, "المضيف") : null,
+  who.replaceChildren(...[av(V.me, "sm"), h("b", null, nm(V.me)), BOT ? h("span",{class:"badge",style:"background:var(--a4)"}, "بوت") : null, isHost() ? h("span",{class:"badge"}, "المضيف") : null,
     cur && cur.dealer === V.me && ["NOMINATION","DISCUSSION","VOTING","ROUND_RESULT"].includes(ph) ? h("span",{class:"badge deal"}, "بتوزّع") : null].filter(Boolean));
   // the status line
   const st = $("status"); st.hidden = false;
@@ -616,6 +622,7 @@ function render(){
   $("hist").hidden = !(m && hist.length && ph !== "ABORTED");
   if (!$("hist").hidden) rHistory(hist);
   rHost();
+  if (BOT) botTick();
 }
 
 function rLobby(){
@@ -849,6 +856,71 @@ $("hb-abort").addEventListener("click", e => {
   });
 })();
 
+/* ---------- a bot: plays this seat by itself, with the same actions as a phone ---------- */
+let botT = 0, botKey = "";
+const pause = (a, b) => FAST ? 120 + Math.random() * 120 : a + Math.random() * (b - a);
+const pickOne = xs => xs[Math.floor(Math.random() * xs.length)];
+const shuffled = xs => xs.map(x => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+// the rival pair the votes point to most: two players who kept voting for each other
+function botGuess(allowed){
+  const m = M(), score = (x, y) => m.history.reduce((n, r) => n + r.votes.filter(v => (v.p === x && v.c === y) || (v.p === y && v.c === x)).length, 0);
+  const pairs = [];
+  for (let i = 0; i < allowed.length; i++) for (let j = i + 1; j < allowed.length; j++) pairs.push([allowed[i], allowed[j], score(allowed[i], allowed[j]) + Math.random()]);
+  pairs.sort((a, b) => b[2] - a[2]);
+  return pairs[0];
+}
+function botTick(){
+  if (!V) return;
+  const m = M(), ph = V.phase, can = V.can || {}, mine = m && m.mine;
+  let key = "", run = null, wait = pause(900, 2200);
+  if (ph === "PARTNER_REVEAL" && mine && !mine.acked){ key = "ack" + m.id; run = () => act("ut_ack"); }
+  else if (ph === "NOMINATION" && m.cur.dealer === V.me){
+    key = "nom" + m.id + m.round; wait = pause(1500, 3000);
+    run = () => {
+      const others = V.players.map(p => p.id).filter(id => id !== V.me);
+      // sometimes the dealer helps their partner, sometimes not, to keep the table guessing
+      const two = mine && Math.random() < .4 ? [mine.partner, pickOne(others.filter(id => id !== mine.partner))] : shuffled(others).slice(0, 2);
+      act("ut_nominate", {p_round:m.round, p_a:two[0], p_b:two[1]});
+    };
+  }
+  else if (ph === "VOTING" && mine && !m.cur.my_vote){
+    key = "vote" + m.id + m.round;
+    run = () => {
+      const [a, b] = m.cur.nominees, mate = mine.partner;
+      const choice = [a, b].includes(V.me) && Math.random() < .8 ? V.me : [a, b].includes(mate) && Math.random() < .75 ? mate : pickOne([a, b]);
+      act("ut_vote", {p_round:m.round, p_choice:choice});
+    };
+  }
+  else if (ph === "FINAL_GUESSES" && mine && !mine.guess){
+    key = "guess" + m.id;
+    run = () => { const g = botGuess(V.players.map(p => p.id).filter(id => id !== V.me && id !== mine.partner)); act("ut_guess", {p_a:g[0], p_b:g[1]}); };
+  }
+  else if (isHost()){
+    // a bot host moves the game on as soon as it may (after a pause for the table to talk)
+    const plan = {LOBBY:["start","ut_start"], PARTNER_REVEAL:["begin","ut_begin"], DISCUSSION:["open","ut_open"], VOTING:["reveal","ut_reveal"],
+      ROUND_RESULT:["next","ut_next"], FINAL_GUESSES:["finale","ut_finale"]}[ph];
+    if (plan && can[plan[0]] && (ph !== "LOBBY" || V.players.length >= WANT)){
+      key = "host" + ph + V.v; wait = ph === "DISCUSSION" ? pause(3500, 5000) : ph === "ROUND_RESULT" ? pause(2500, 3500) : pause(1200, 2000);
+      run = () => act(plan[1], ["DISCUSSION","VOTING","ROUND_RESULT"].includes(ph) ? {p_round:m.round} : null);
+    }
+  }
+  if (!run || key === botKey) return;
+  botKey = key; clearTimeout(botT);
+  botT = setTimeout(async () => { await run(); setTimeout(() => { if (botKey === key){ botKey = ""; botTick(); } }, 4000); }, wait);
+}
+// a bot without a seat joins (or opens) the room by itself, under its name; a taken name gets a number
+async function botJoin(c){
+  const base = QNAME || "بوت";
+  for (let i = 0; i < 6; i++){
+    const n = i ? base + " " + fmt(i + 1) : base;
+    try {
+      const r = c ? await rpc("ut_join", {p_code:c, p_name:n}) : await rpc("ut_create", {p_name:n});
+      saved.name = n; enter(c || r.view.code, r.token, r.view); return true;
+    } catch(e){ if (e.code !== "name_taken") { showStart(c); setMsg($("join-msg"), ERR[e.code] || ERR.net); return false; } }
+  }
+  return false;
+}
+
 /* ---------- open ---------- */
 const hashCode = () => { const m = /^#(\d{5})$/.exec(location.hash); return m ? m[1] : null; };
 async function boot(){
@@ -858,6 +930,7 @@ async function boot(){
     try { setView(await rpc("ut_state", {p_code:c, p_token:token})); connect(); loop(); return; }
     catch(e){ if (e.code === "seat" || e.code === "room"){ lost(e.code); return; } setNet(false); connect(); loop(); return; }
   }
+  if (BOT && (c || CREATE)){ await botJoin(c); return; }
   showStart(c);
 }
 window.addEventListener("hashchange", () => { const c = hashCode(); if (c && c !== code){ code = null; token = null; V = null; lastJson = ""; if (room){ try { room.close(); } catch(e){} room = null; } boot(); } });
