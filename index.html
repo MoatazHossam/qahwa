@@ -911,6 +911,7 @@ body.hostm .me{display:none}
       <button class="mode" type="button" data-mode="board">لوحة الفئات</button>
       <button class="mode" type="button" data-mode="race">سباق السرعة</button>
       <button class="mode" type="button" data-mode="feud">أشهر إجابة</button>
+      <button class="mode" type="button" id="ut-open" aria-haspopup="dialog">تحت الترابيزة</button>
     </nav>
     <button class="acct" id="acct" type="button" hidden></button>
   </header>
@@ -1268,6 +1269,20 @@ body.hostm .me{display:none}
     <div class="end-actions">
       <button class="primary" type="button" id="host-close">تمام</button>
       <button class="ghost" type="button" id="host-new" title="لو حد تاني مسح الكود: الكود القديم يبطّل">كود جديد</button>
+    </div>
+  </div>
+</div>
+
+<!-- «تحت الترابيزة»: a phones-only game; this screen only shows how to start it -->
+<div class="over" id="utover" hidden role="dialog" aria-modal="true" aria-labelledby="ut-h" dir="rtl" lang="ar">
+  <div class="endcard invcard hostcard">
+    <h2 class="end-w" id="ut-h">تحت الترابيزة</h2>
+    <p class="end-k">كل اتنين شركا في السر: ساعدوا بعض تجمعوا عملات من غير ما حد يعرف، واكشفوا الفرق التانية. لعبة موبايلات بس، من ٦ أو ٨ لاعبين.</p>
+    <div class="qr" id="ut-qr" role="img" aria-label="رمز QR لصفحة تحت الترابيزة"></div>
+    <p class="hint" id="ut-url" dir="ltr"></p>
+    <p class="hint">واحد منكم يمسح الكود ويفتح غرفة، والباقيين يدخلوا من الكود اللي هيظهر على موبايله.</p>
+    <div class="end-actions">
+      <button class="primary" type="button" id="ut-close">تمام</button>
     </div>
   </div>
 </div>
@@ -3865,6 +3880,16 @@ function drawHostQr(){
   renderHostChips();
 }
 function rotateHost(){ state.hostKey = newHostKey(); hSeen = 0; save(); connectHost(); drawHostQr(); }
+let utBack = null;
+const utUrl = () => { const u = new URL("under.html", location.href); u.search = ""; u.hash = ""; return u.href; };
+function openUt(){
+  utBack = document.activeElement;
+  const box = $("ut-qr");
+  try { const qr = qrcode(0, "M"); qr.addData(utUrl()); qr.make(); box.innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true}); } catch(e){ box.textContent = ""; }
+  $("ut-url").textContent = utUrl().replace(/^https?:\/\//, "");
+  $("utover").hidden = false; $("ut-close").focus();
+}
+function closeUt(){ $("utover").hidden = true; if (utBack && utBack.focus) utBack.focus(); }
 function closeHost(){ $("hostover").hidden = true; if (hostBack && hostBack.focus) hostBack.focus(); }
 let hWasLive = false;
 function renderHostChips(){
@@ -4287,6 +4312,9 @@ function bind(){
   $("qp-no").addEventListener("click", () => partyJudge(false));
   ["b-host","f-host","rv-host","r-host"].forEach(id => $(id).addEventListener("click", openHost));
   $("host-close").addEventListener("click", closeHost);
+  $("ut-open").addEventListener("click", openUt);
+  $("ut-close").addEventListener("click", closeUt);
+  $("utover").addEventListener("keydown", e => { if (e.key === "Escape") closeUt(); });
   $("host-new").addEventListener("click", rotateHost);
   $("r-peek").addEventListener("click", racePeek);
   $("q-swap").addEventListener("click", swapQ);
