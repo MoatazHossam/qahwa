@@ -912,6 +912,7 @@ body.hostm .me{display:none}
       <button class="mode" type="button" data-mode="race">سباق السرعة</button>
       <button class="mode" type="button" data-mode="feud">أشهر إجابة</button>
       <button class="mode" type="button" id="ut-open" aria-haspopup="dialog">تحت الترابيزة</button>
+      <button class="mode" type="button" id="sb-open" aria-haspopup="dialog">نفس الدماغ</button>
     </nav>
     <button class="acct" id="acct" type="button" hidden></button>
   </header>
@@ -1283,6 +1284,21 @@ body.hostm .me{display:none}
     <p class="hint">واحد منكم يمسح الكود ويفتح غرفة، والباقيين يدخلوا من الكود اللي هيظهر على موبايله.</p>
     <div class="end-actions">
       <button class="primary" type="button" id="ut-close">تمام</button>
+    </div>
+  </div>
+</div>
+
+<!-- «نفس الدماغ»: a phones-only game; this screen only shows how to start it -->
+<div class="over" id="sbover" hidden role="dialog" aria-modal="true" aria-labelledby="sb-h" dir="rtl" lang="ar">
+  <div class="endcard invcard hostcard">
+    <h2 class="end-w" id="sb-h">نفس الدماغ 🧠</h2>
+    <p class="end-k">اكتبوا إجاباتكم في السر… وشوفوا مين فكّر زي مين.</p>
+    <p class="hint">سؤال واحد للجميع، ويكتب كل لاعب إجابته سرًّا على هاتفه، ثم تُكشف الإجابات معًا. من تتطابق إجابته مع إجابة لاعب آخر يكسب نقطة. خمسة أسئلة، من ٣ إلى ٨ لاعبين.</p>
+    <div class="qr" id="sb-qr" role="img" aria-label="رمز QR لصفحة نفس الدماغ"></div>
+    <p class="hint" id="sb-url" dir="ltr"></p>
+    <p class="hint">يمسح أحدكم الرمز ويفتح غرفة، ويدخل الباقون من الرمز الذي يظهر على هاتفه.</p>
+    <div class="end-actions">
+      <button class="primary" type="button" id="sb-close">حسنًا</button>
     </div>
   </div>
 </div>
@@ -3889,6 +3905,16 @@ function openUt(){
   $("ut-url").textContent = utUrl().replace(/^https?:\/\//, "");
   $("utover").hidden = false; $("ut-close").focus();
 }
+let sbBack = null;
+const sbUrl = () => { const u = new URL("brain.html", location.href); u.search = ""; u.hash = ""; return u.href; };
+function openSb(){
+  sbBack = document.activeElement;
+  const box = $("sb-qr");
+  try { const qr = qrcode(0, "M"); qr.addData(sbUrl()); qr.make(); box.innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true}); } catch(e){ box.textContent = ""; }
+  $("sb-url").textContent = sbUrl().replace(/^https?:\/\//, "");
+  $("sbover").hidden = false; $("sb-close").focus();
+}
+function closeSb(){ $("sbover").hidden = true; if (sbBack && sbBack.focus) sbBack.focus(); }
 function closeUt(){ $("utover").hidden = true; if (utBack && utBack.focus) utBack.focus(); }
 function closeHost(){ $("hostover").hidden = true; if (hostBack && hostBack.focus) hostBack.focus(); }
 let hWasLive = false;
@@ -4315,6 +4341,9 @@ function bind(){
   $("ut-open").addEventListener("click", openUt);
   $("ut-close").addEventListener("click", closeUt);
   $("utover").addEventListener("keydown", e => { if (e.key === "Escape") closeUt(); });
+  $("sb-open").addEventListener("click", openSb);
+  $("sb-close").addEventListener("click", closeSb);
+  $("sbover").addEventListener("keydown", e => { if (e.key === "Escape") closeSb(); });
   $("host-new").addEventListener("click", rotateHost);
   $("r-peek").addEventListener("click", racePeek);
   $("q-swap").addEventListener("click", swapQ);
