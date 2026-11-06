@@ -169,6 +169,10 @@ dialog .hd{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 }
 @media (prefers-reduced-motion: reduce){ *{transition:none !important} }
 .review .checks{display:grid;gap:4px;margin:0;font-size:.88rem}
+.sbg summary{cursor:pointer;font-size:.9rem;color:var(--ink-2)}
+.sbg .kv{margin-top:6px}
+#sb-panel>summary{cursor:pointer;list-style:none}
+#sb-panel>summary::-webkit-details-marker{display:none}
 .review .checks p{margin:0}
 .bulk{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
 .bulk h3{margin:0;font-size:1rem}
@@ -400,6 +404,7 @@ async function load(){
   const [rooms, accounts, who] = await Promise.all([rpc("admin_rooms").catch(() => []), rpc("admin_accounts").catch(() => null),
     apiAll("/venue_who_prompts?select=id,ar,ar_std,en,status,shown_n,skipped_n", "created_at.asc,id.asc", "id").catch(() => [])]);
   D.party = party;
+  D.sb = await apiAll("/sb_prompts?select=id,category,ar,en,version,alias_version,aliases,status,reviewed_at", "id.asc", "id").catch(() => []);
   D.who = Array.isArray(who) ? who : [];
   D.rooms = Array.isArray(rooms) ? rooms : []; D.accounts = typeof accounts === "number" ? accounts : null;
   D.brands = brands; D.packBrands = {};
@@ -712,6 +717,8 @@ function drafts(){
   return {qs:D.qs.filter(q => q.status === "draft" && inBrand(qBrands(q))),
     rs:D.feud.filter(r => r.status === "draft" && inBrand(brandsOfPack(r.pack_id))),
     ps:D.party.filter(p => p.status === "draft" && inBrand(brandsOfPack(p.pack_id))),
+    // «نفس الدماغ»: not tied to a brand
+    sbs:(D.sb || []).filter(x => x.status === "draft"),
     // «مين يعرف الطاولة أكتر؟» in the cafés: not tied to a brand, so shown whatever the brand
     ws:(D.who || []).filter(w => w.status === "draft")};
 }
@@ -808,23 +815,109 @@ function editWho(w){
     })
   ]);
 }
+/* «نفس الدماغ»: a prompt everyone answers in secret, scoring when answers match. The alias groups are the answers that
+   count as the same for that prompt (spellings, with and without ال, English); anything else matches only when it is the
+   same text. The database rebuilds the index of each prompt's groups and refuses an answer listed in two groups. */
+const SB_CAT = {cafe:"كافيه", daily:"كل يوم", fun:"خيال"};
+const sbGroupsText = x => (x.aliases || []).map(g => g.key + ": " + (g.aliases || []).join("، ")).join("\n");
+function sbGroups(x){
+  const gs = x.aliases || [];
+  return h("details",{class:"sbg"}, h("summary", null, "الإجابات اللي بتتحسب زي بعض (" + fmt(gs.length) + " مجموعة)"),
+    h("dl",{class:"kv"}, gs.flatMap(g => [h("dt",{dir:"ltr"}, g.key), h("dd", null, (g.aliases || []).join("، "))])));
+}
+function reviewSb(x){
+  return h("article",{class:"report review","data-id":x.id},
+    h("div",{class:"where"}, h("span", null, "نفس الدماغ"), h("span", null, SB_CAT[x.category] || x.category), h("span",{dir:"ltr"}, x.id)),
+    h("p",{class:"q"}, x.ar),
+    h("dl",{class:"kv"}, h("dt", null, "بالإنجليزي"), h("dd",{dir:"ltr",style:"text-align:right"}, x.en)),
+    sbGroups(x),
+    decide("sb_prompts", x, () => editSb(x)));
+}
+// "key: alias، alias" per line → [{key, aliases}], or a message
+function sbParse(text){
+  const out = [], seen = new Map();
+  for (const raw of text.split("\n")){
+    const line = raw.trim(); if (!line) continue;
+    const m = /^([a-z][a-z0-9_]{0,39})\s*:\s*(.*)$/.exec(line);
+    if (!m) return "كل سطر يبدأ باسم المجموعة بالإنجليزي الصغير (حروف وأرقام و _) وبعده «:» وبعده الإجابات: «" + line.slice(0, 30) + "»";
+    const aliases = m[2].split(/[,،]/).map(a => a.trim()).filter(Boolean);
+    if (!aliases.length) return "المجموعة «" + m[1] + "» مفيهاش إجابات.";
+    for (const a of aliases){
+      const k = a.toLowerCase().replace(/\s+/g, " ");
+      if (seen.has(k) && seen.get(k) !== m[1]) return "«" + a + "» مكتوبة في مجموعتين: " + seen.get(k) + " و" + m[1] + ".";
+      seen.set(k, m[1]);
+    }
+    const g = out.find(x => x.key === m[1]);
+    if (g) g.aliases.push(...aliases); else out.push({key:m[1], aliases});
+  }
+  return out;
+}
+function editSb(x){
+  openDialog([
+    h("div",{class:"hd"}, h("h2",{id:"dlg-title"}, "تعديل سؤال «نفس الدماغ»")),
+    h("p",{class:"muted small"}, "سؤال ليه إجابات كتير ممكنة، ومحدش فيها غلط. بعيد عن الإحراج، ومن غير ما يحكم على حد من القاعدين."),
+    h("label",{class:"field"}, h("span", null, "السؤال بالمصري"), h("input",{type:"text",id:"s-ar",value:x.ar,maxlength:"200"})),
+    h("label",{class:"field"}, h("span", null, "بالإنجليزي"), h("input",{type:"text",id:"s-en",value:x.en,maxlength:"200",dir:"ltr"})),
+    h("label",{class:"field"}, h("span", null, "النوع"), h("select",{id:"s-cat"}, Object.entries(SB_CAT).map(([v,l]) => h("option",{value:v, selected:x.category === v ? true : null}, l)))),
+    h("label",{class:"field"}, h("span", null, "الإجابات اللي بتتحسب زي بعض: كل مجموعة في سطر، اسمها بالإنجليزي وبعده «:» وبعده الإجابات بفصلة"),
+      h("textarea",{id:"s-al",rows:"10",dir:"rtl"}, sbGroupsText(x))),
+    h("p",{class:"muted small"}, "مثال: ", h("bdi",{dir:"ltr"}, "mobile_phone: موبايل، تليفون، phone"), ". المجموعة للمعنى الواحد بس: قهوة وشاي مجموعتين. التشكيل والهمزات على الألف وحالة الحروف بتتشال لوحدها، لكن ة/ه وى/ي لأ، فاكتبهم الاتنين لو محتاج."),
+    h("label",{class:"field"}, h("span", null, "الحالة"), h("select",{id:"s-st"}, [["verified","شغال"],["draft","مستني مراجعة"],["retired","ملغي"]]
+      .map(([v,l]) => h("option",{value:v, selected:x.status === v ? true : null}, l)))),
+    h("p",{class:"muted small"}, "التعديل بيوصل من أول سؤال جديد يتفتح. السؤال المفتوح دلوقتي في أي غرفة بيكمل زي ما هو."),
+    footer(false, {
+      check(){
+        const ar = $("s-ar").value.trim(), en = $("s-en").value.trim();
+        if (ar.length < 5 || ar.length > 200 || en.length < 5 || en.length > 200) return "السؤال بالمصري وبالإنجليزي من ٥ لـ ٢٠٠ حرف.";
+        const g = sbParse($("s-al").value);
+        return typeof g === "string" ? g : "";
+      },
+      async run(){
+        try {
+          await api("/sb_prompts?id=eq." + encodeURIComponent(x.id), {method:"PATCH", prefer:"return=minimal",
+            body:{ar:$("s-ar").value.trim(), en:$("s-en").value.trim(), category:$("s-cat").value, aliases:sbParse($("s-al").value), status:$("s-st").value}});
+        } catch(e){
+          if (/alias_collision/.test(e.message || "")) { const u = new Error("collision"); u.userMsg = "فيه إجابة في مجموعتين بعد ما بنشيل التشكيل والهمزات على الألف وحالة الحروف. شيلها من واحدة منهم."; throw u; }
+          throw e;
+        }
+      }
+    })
+  ]);
+}
+// every prompt, with its status
+function sbPanel(){
+  const all = D.sb || [];
+  if (!all.length) return null;
+  const n = st => all.filter(x => x.status === st).length;
+  return h("details",{class:"panel",id:"sb-panel"},
+    h("summary",{class:"hd"}, h("h2", null, "أسئلة «نفس الدماغ» (" + fmt(all.length) + ")"),
+      h("span",{class:"muted small"}, "شغال " + fmt(n("verified")) + "، مستني " + fmt(n("draft")) + "، ملغي " + fmt(n("retired")) + ". اللعبة محتاجة ٥ شغالين على الأقل.")),
+    h("div",{class:"tbl-wrap"}, h("table",{class:"words"},
+      h("thead", null, h("tr", null, h("th", null, "السؤال"), h("th", null, "النوع"), h("th", null, "الحالة"), h("th",{class:"n"}, "مجموعات"), h("th", null, ""))),
+      h("tbody", null, all.map(x => h("tr",{"data-id":x.id},
+        h("td",{class:"qcell"}, x.ar), h("td", null, SB_CAT[x.category] || x.category),
+        h("td", null, h("span",{class:"tag" + (x.status === "retired" ? " bad" : x.status === "draft" ? " warn" : " ok")}, STATUS[x.status] || x.status)),
+        h("td",{class:"n"}, fmt((x.aliases || []).length)),
+        h("td", null, h("button",{class:"btn",type:"button",onclick:() => editSb(x)}, "تعديل"))))))));
+}
 function renderReview(){
-  const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length + R.ws.length;
+  const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length + R.ws.length + R.sbs.length;
   $("c-review").textContent = fmt(n); $("c-review").classList.toggle("alert", n > 0);
   if (!n){ box.replaceChildren(h("div",{class:"panel"}, h("div",{class:"hd"}, h("h2", null, "المراجعة")),
-    h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها.")), researchPanel()); return; }
+    h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها.")), sbPanel(), researchPanel()); return; }
   const need = R.qs.map(q => q.id).filter(id => !(id in REV.sources));
   if (need.length) loadReviewExtras(need).catch(() => {});
   const parts = [h("div",{class:"hd"}, h("h2", null, "مستني مراجعة"), h("span",{class:"muted small"}, "اللي تعتمده بيبقى في اللعبة الجاية على طول. عدّل لو محتاج، أو ارفض."))];
   if (R.qs.length) parts.push(bulkBar("أسئلة", R.qs.length, "questions", R.qs.map(q => q.id)), ...R.qs.map(reviewQ));
   if (R.rs.length) parts.push(bulkBar("جولات أشهر إجابة", R.rs.length, "feud_rounds", R.rs.map(r => r.id)), ...R.rs.map(reviewRound));
   if (R.ws.length) parts.push(bulkBar("أسئلة «مين يعرف الطاولة أكتر؟» في المقاهي (اللعبة مش ظاهرة إلا لما تعتمد سؤال واحد على الأقل)", R.ws.length, "venue_who_prompts", R.ws.map(w => w.id)), ...R.ws.map(reviewWho));
+  if (R.sbs.length) parts.push(bulkBar("أسئلة «نفس الدماغ» (اللعبة بتبدأ لما يبقى فيه ٥ معتمدين على الأقل)", R.sbs.length, "sb_prompts", R.sbs.map(x => x.id)), ...R.sbs.map(reviewSb));
   if (R.ps.length) parts.push(bulkBar("كلمات الفقرات", R.ps.length, "party_items", R.ps.map(p => p.id)),
     h("div",{class:"tbl-wrap"}, h("table",{class:"words"},
       h("thead", null, h("tr", null, h("th", null, "الكلمة"), h("th", null, "الفقرة"), h("th",{class:"n"}, "المستوى"), h("th", null, "ممنوع يتقال"), h("th", null, ""))),
       h("tbody", null, R.ps.map(p => h("tr",{"data-id":p.id}, h("td",{class:"qcell"}, p.text), h("td", null, PARTY_KIND[p.kind] || p.kind), h("td",{class:"n"}, fmt(p.level)),
         h("td", null, (p.banned || []).join("، ")), h("td", null, decide("party_items", p, null))))))));
-  box.replaceChildren(h("div",{class:"panel"}, ...parts), researchPanel());
+  box.replaceChildren(h("div",{class:"panel"}, ...parts), sbPanel(), researchPanel());
 }
 
 /* ---------- research history: how each question was written and checked, kept in the database ----------
@@ -932,7 +1025,7 @@ function footer(fromReport, onSave){
     const err = onSave.check(); if (err){ msg.textContent = err; msg.hidden = false; return; }
     save.disabled = true;
     try { await onSave.run(); }
-    catch(e){ save.disabled = false; msg.textContent = "ماقدرناش نحفظ. جرب تاني."; msg.hidden = false; return; }
+    catch(e){ save.disabled = false; msg.textContent = e && e.userMsg || "ماقدرناش نحفظ. جرب تاني."; msg.hidden = false; return; }
     closeDialog();
     try { await load(); } catch(e){ showLoadErr("اتحفظ. " + LOAD_FAILED); }
   });
