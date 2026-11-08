@@ -82,6 +82,9 @@ input:focus{outline:none;border-color:var(--brass)}
 .bar i{display:block;height:100%;width:100%;background:var(--brass);transform-origin:right center;transition:transform .12s linear}
 .bar.warn i{background:var(--bad)}
 .left{margin:-6px 0 0;color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+.left.warn{color:var(--bad);font-weight:700;font-size:1rem}
+.tp.cur{outline:3px solid var(--cream);outline-offset:3px}
+.tp.cur::after{content:" ✓"}
 .opts{display:grid;grid-template-columns:1fr;gap:10px}
 #q-opts .buzzbtn{justify-self:center}
 .opt{
@@ -447,10 +450,8 @@ button.cell:active{transform:translateY(5px);box-shadow:inset 0 3px 0 rgba(255,2
 /* the surprises: a stamp on the other corner */
 .qstamp.qsurprise{inset-inline-end:auto;inset-inline-start:clamp(18px,4vw,48px);transform:rotate(7deg);background:var(--tile);color:var(--tile-ink);
   box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--tile-edge),0 12px 26px rgba(0,0,0,.35);animation:stamp2 .55s cubic-bezier(.2,1.6,.4,1)}
-.qstamp.qsurprise.minus{background:var(--bad);color:var(--on-bad);box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--bad),0 12px 26px rgba(0,0,0,.35)}
 .qstamp.qsurprise span::before{display:none}
 @keyframes stamp2{from{opacity:0;transform:rotate(7deg) scale(2.4)}}
-.dd.minus{background:var(--bad);color:var(--on-bad)}
 .qunsteal{align-self:center}
 .score .adj .giveback{font-size:.72rem;white-space:nowrap}
 @media (max-width:640px){.qstamp,.qstamp.qsurprise{position:static;transform:rotate(-3deg);margin-top:-6px}@keyframes stamp{from{opacity:0;transform:rotate(-3deg) scale(1.8)}}}
@@ -568,6 +569,7 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
 .qp-word strong{font-family:var(--f-show);font-weight:700;font-size:clamp(2.2rem,6vw,4.4rem);line-height:1.2;text-shadow:0 0 22px var(--led-glow)}
 .qp-word span{font-weight:600;font-size:1.05rem}
 .qp-word span:empty{display:none}
+.qp-see{user-select:none;-webkit-user-select:none;touch-action:none;-webkit-touch-callout:none}
 .qcard.party .qtext{font-family:var(--f-show);font-weight:700;font-size:clamp(1.6rem,3.6vw,2.8rem)}
 .qcard.party.revealed .qp-rule,.qcard.party.revealed .qp-type{display:none}
 .rsub{margin:0 auto;max-width:52ch;text-align:center;color:var(--cream);opacity:.88;font-size:clamp(1rem,1.8vw,1.3rem);text-wrap:balance}
@@ -671,6 +673,7 @@ body.hostm .me{display:none}
         <p class="sub" id="w-sub"></p>
         <button class="help" id="w-two" type="button" hidden>جاوب جوابين</button>
         <ol class="rank" id="w-scores" hidden></ol>
+        <button class="ghost" id="w-team" type="button" hidden>غيّر فريقك</button>
         <button class="ghost" id="w-leave" type="button" hidden>اكتب رقم الغرفة تاني</button>
       </div>
     </section>
@@ -679,7 +682,9 @@ body.hostm .me{display:none}
     <section class="view" id="v-team" hidden>
       <div class="card">
         <h2>اختار فريقك</h2>
+        <p class="sub" id="t-now" hidden></p>
         <div class="team-pick" id="t-pick"></div>
+        <button class="ghost" id="t-back" type="button" hidden>خليني في فريقي</button>
       </div>
     </section>
 
@@ -691,11 +696,14 @@ body.hostm .me{display:none}
       <div class="pboard" id="g-board"></div>
       <p class="sub center-t" id="g-note"></p>
       <ol class="rank" id="g-scores"></ol>
+      <button class="ghost" id="g-team" type="button" hidden>غيّر فريقك</button>
     </section>
 
     <!-- board: buzzer -->
     <section class="view" id="v-buzz" hidden>
       <div class="qmeta"><span id="b-val"></span><b id="b-cat"></b></div>
+      <div class="bar" id="b-bar" hidden><i id="b-fill"></i></div>
+      <p class="left center-t" id="b-left" hidden aria-live="off"></p>
       <p class="qtext" id="b-text"></p>
       <img class="qimg" id="b-img" alt="صورة السؤال" hidden>
       <div class="opts bopts" id="b-opts" hidden></div>
@@ -984,13 +992,21 @@ const nf = new Intl.NumberFormat("ar-EG");
 const fmt = n => nf.format(n);
 const fmtS = n => new Intl.NumberFormat("ar-EG",{signDisplay:"always"}).format(n);
 const SHAPES = ["▲","◆","●","■"];
-const LS = BRAND.storageKey + ":race-phone";
+// a test table (board-test.html): ?seat=… gives this copy its own storage, and with ?bot=1 it plays by itself
+const QS = new URLSearchParams(location.search);
+const SEAT = /^[a-z0-9-]{1,40}$/i.test(QS.get("seat") || "") ? QS.get("seat") : "";
+const BOT = !!SEAT && QS.get("bot") === "1", FAST = QS.get("speed") === "fast";
+const SEAT_NAME = SEAT ? String(QS.get("name") || "").replace(/\s+/g, " ").trim().slice(0, 16) : "";
+const BOT_TEAM = BOT && /^[0-5]$/.test(QS.get("team") || "") ? Number(QS.get("team")) : null;
+const LS = BRAND.storageKey + ":race-phone" + (SEAT ? ":seat:" + SEAT : "");
 const VIEWS = ["v-join","v-wait","v-team","v-board","v-buzz","v-party","v-q","v-sent","v-res","v-final","v-closed","v-host"];
 
 let saved = load();
 let me = {code:"", name:"", pid:""};
 let room = null, pulse = 0, tick = 0, lost = 0;
 let last = null, hs = null, seq = -1, everOpen = false, buzzedKey = "", pickSent = null, pickT = 0, helpSent = null, helpT = 0, ansSent = null, ansT = 0;
+// the board's teams: «choosing» while the team list is open to change team, «wantTeam» until the screen shows the change
+let choosing = false, wantTeam = null, wAgain = false;
 const shownAt = {}, deadline = {};
 /* clock sync with the screen, for the buzzer race: the best of the last few ping/pong samples (lowest round trip) */
 let clk = null, clkT = 0, rbSent = "";
@@ -1103,7 +1119,20 @@ function stop(){
   if (room){ room.close(); room = null; }
   $("conn").hidden = true;
 }
-function hello(){ if (room) room.send("hello", {pid:me.pid, name:me.name, team:(saved.teamCode === me.code ? saved.team || null : null)}); }
+function hello(){
+  if (!room) return;
+  room.send("hello", {pid:me.pid, name:me.name, team:(saved.teamCode === me.code ? saved.team || null : null)});
+  if (wantTeam) sendTeam();
+}
+function sendTeam(){ if (room && wantTeam) room.send("team", {pid:me.pid, team:wantTeam.id}); }
+/* this phone's seat in a room: forgotten when the host takes the player out, so coming back is a new player */
+function forgetSeat(code){
+  if (saved.pids && typeof saved.pids === "object") delete saved.pids[code];
+  if (saved.code === code) saved.pid = "";
+  if (saved.teamCode === code) saved.team = null;
+  wantTeam = null; choosing = false;
+  persist();
+}
 
 /* ===== messages from the host screen ===== */
 function onStatus(s){
@@ -1130,7 +1159,8 @@ function myRank(){
 function waitView(ico, title, sub, canLeave){
   view("v-wait");
   setIco($("w-ico"), ico); $("w-title").textContent = title; $("w-sub").textContent = sub || "";
-  $("w-leave").hidden = !canLeave; $("w-scores").hidden = true; $("w-two").hidden = true;
+  $("w-leave").hidden = !canLeave; $("w-leave").textContent = typeof canLeave === "string" ? canLeave : "اكتب رقم الغرفة تاني"; wAgain = false;
+  $("w-scores").hidden = true; $("w-two").hidden = true; $("w-team").hidden = true;
 }
 /* a picture from the screen's state: only https pictures, and the same picture is not loaded twice */
 function showImg(el, u){
@@ -1139,13 +1169,14 @@ function showImg(el, u){
   if (!ok){ el.removeAttribute("src"); return; }
   if (el.getAttribute("src") !== u) el.src = u;
 }
-function render(){
+function render(){ draw(); if (BOT) botTick(); }
+function draw(){
   const p = last; if (!p) return;
   const q = p.q || null;
   if (p.phase === "closed"){ stop(); closedView(); return; }
   if (Array.isArray(p.kicked) && p.kicked.includes(me.pid)){
-    stop(); if (saved.teamCode === me.code){ saved.team = null; persist(); }
-    waitView("out", "المقدّم شالك من الغرفة", "لو ده حصل بالغلط، اطلب منه يدخلك تاني، وادخل من الرابط.", true); return;
+    stop(); forgetSeat(me.code); $("me").hidden = true;
+    waitView("out", "المقدّم شالك من الغرفة", "لو عايز ترجع، ادخل تاني واختار فريقك.", "ادخل تاني"); wAgain = true; return;
   }
   if (p.kind === "board"){ boardRender(p); return; }
   $("tag").textContent = "سباق السرعة";
@@ -1243,7 +1274,7 @@ function sentView(q, k){
   } else chip.hidden = true;
 }
 function onTick(){
-  partyTick();
+  partyTick(); boardTick();
   const p = last; if (!p || p.phase !== "question" || !p.q || $("v-q").hidden) return;
   const q = p.q, limit = Math.max(1, Number(q.limit) || 1);
   const left = Math.max(0, (deadline[qkey(q.i)] || 0) - performance.now());
@@ -1282,6 +1313,12 @@ function bTeams(){ return Array.isArray(last && last.teams) ? last.teams : []; }
 function myTeam(){
   const ok = id => !!id && bTeams().some(t => t.id === id);
   const mine = players().find(x => x.id === me.pid);
+  if (wantTeam){
+    // a change sent to the screen: shown here at once, dropped if the screen has not taken it in a few seconds
+    if (mine && mine.team === wantTeam.id) wantTeam = null;
+    else if (Date.now() - wantTeam.at < 8000 && ok(wantTeam.id)) return wantTeam.id;
+    else wantTeam = null;
+  }
   if (mine && ok(mine.team)){
     if (saved.team !== mine.team || saved.teamCode !== me.code){ saved.team = mine.team; saved.teamCode = me.code; persist(); }
     return mine.team;
@@ -1304,10 +1341,12 @@ function closedView(){
   $("c-sub").textContent = saved6 ? "شكرًا على اللعب. المرة الجاية افتح نفس الرابط." : "شكرًا على اللعب.";
   $("c-again").textContent = saved6 ? "استنى السهرة الجاية هنا" : "ادخل غرفة أخرى";
 }
+const canSwap = () => !!(last && last.kind === "board" && last.swap);
 function boardRender(p){
   $("tag").textContent = p.roomName ? "غرفة «" + p.roomName + "»" : "لوحة الفئات";
   const tid = myTeam();
-  if (!tid){ teamView(); return; }
+  if (choosing && !canSwap()) choosing = false;
+  if (!tid || choosing){ teamView(tid); return; }
   $("me").hidden = false;
   $("me").replaceChildren(h("b", null, me.name), "، ", h("b",{style:"color:" + (teamColor(tid) || "inherit")}, teamName(tid)));
   const q = p.q || null;
@@ -1329,6 +1368,7 @@ function boardRender(p){
   if (p.phase === "final"){ boardFinal(tid); return; }
   if (p.phase === "idle" && p.board){ boardView(p, tid); return; }
   waitView("ok", "إنت في " + teamName(tid), "استنوا لحد ما اللعب يبدأ على الشاشة.");
+  $("w-team").hidden = !canSwap();
   scoresList(tid);
 }
 function boardView(p, tid){
@@ -1356,6 +1396,7 @@ function boardView(p, tid){
     }))));
   $("g-note").textContent = myTurn ? (pickSent ? "جارٍ فتح السؤال على الشاشة…" : "السؤال اللي تختاروه هيظهر على الشاشة.") : "استنوا لحد ما يختاروا سؤال.";
   scoresList(tid, "g-scores");
+  $("g-team").hidden = !canSwap() || !!pickSent;
 }
 /* helps: the team whose turn it is can call دبل before picking; the team answering can call جاوب جوابين;
    any other team can steal the question while it is on screen and the answer is not shown yet */
@@ -1391,14 +1432,41 @@ function pick(cell, gid){
   render();
   clearTimeout(pickT); pickT = setTimeout(render, 4100);
 }
-function teamView(){
+function teamView(tid){
   view("v-team");
-  $("t-pick").replaceChildren(...bTeams().map(t => h("button",{class:"tp",type:"button",style:"--tc:" + t.color,onclick:() => pickTeam(t.id)}, t.name)));
+  $("t-now").hidden = !tid; $("t-now").textContent = tid ? "إنت دلوقتي في " + teamName(tid) + ". اختار فريق تاني، أو خليك." : "";
+  $("t-back").hidden = !tid;
+  $("t-pick").replaceChildren(...bTeams().map(t => h("button",{class:"tp" + (t.id === tid ? " cur" : ""),type:"button",style:"--tc:" + t.color,
+    "aria-pressed":t.id === tid ? "true" : null,onclick:() => pickTeam(t.id)}, t.name)));
 }
-function pickTeam(id){ saved.team = id; saved.teamCode = me.code; persist(); hello(); render(); }
+function pickTeam(id){
+  choosing = false;
+  saved.team = id; saved.teamCode = me.code; persist();
+  wantTeam = {id, at:Date.now()};
+  sendTeam(); hello(); render();
+}
+/* the countdown of a board question, as the screen runs it */
+let bT = null;
+function syncBT(q){
+  const t = q && q.t;
+  if (!t || q.sub){ bT = null; return; }
+  const left = Math.max(0, Number(t.left) || 0), tot = Math.max(1, Number(t.total) || 1), run = !!t.run, dead = performance.now() + left;
+  if (!bT || bT.key !== q.key || !run || !bT.run || Math.abs(dead - bT.dead) > 700) bT = {key:q.key, dead, still:left, tot, run};
+  else { bT.tot = tot; bT.still = left; }
+}
+function boardTick(){
+  const bar = $("b-bar"), lab = $("b-left");
+  if ($("v-buzz").hidden || !bT){ bar.hidden = true; lab.hidden = true; return; }
+  const left = bT.run ? Math.max(0, bT.dead - performance.now()) : bT.still, warn = left <= 10000;
+  bar.hidden = false; lab.hidden = false;
+  $("b-fill").style.transform = "scaleX(" + Math.min(1, left / bT.tot).toFixed(3) + ")";
+  bar.classList.toggle("warn", warn); lab.classList.toggle("warn", warn && left > 0);
+  lab.textContent = left > 0 ? "باقي " + fmt(Math.ceil(left / 1000)) + " ث" + (bT.run ? "" : "، والوقت واقف") : "خلص الوقت";
+}
 function boardQView(q, tid){
   view("v-buzz");
   pickSent = null;
+  syncBT(q); boardTick();
   const mine = q.answerer === tid, tn = id => teamName(id);
   $("b-cat").replaceChildren(...(q.slug ? [iconEl(q.slug)] : []), q.cat || "");
   $("b-val").textContent = fmt((q.val || 0) * (q.dbl && q.dbl === q.answerer ? 2 : 1)) + " نقطة";
@@ -1447,7 +1515,7 @@ function boardQView(q, tid){
 }
 /* a party round: one player of the team says «I'll describe it» and only their phone shows the word; when the team
    gets it, that player says so here (or the host does, on the screen) */
-let claimSent = "", pdoneSent = "", pDead = 0, pStill = 0, pTot = 60000, pRun = false;
+let claimSent = "", pdoneSent = "", pDead = 0, pStill = 0, pTot = 60000, pRun = false, pKey = "";
 function partyView(q, tid){
   view("v-party");
   pickSent = null;
@@ -1459,7 +1527,10 @@ function partyView(q, tid){
   const sec = iAm && q.secret && q.secret.to === me.pid ? q.secret : null;
   $("p-word").hidden = !sec;
   if (sec){ $("p-w").textContent = sec.w || ""; $("p-ban").textContent = Array.isArray(sec.ban) && sec.ban.length ? "ممنوع تقول: " + sec.ban.join("، ") : dsc ? "" : "ولا كلمة ولا صوت!"; }
-  pTot = Math.max(1, Number(q.total) || 60000); pRun = !!q.run; pStill = Math.max(0, Number(q.left) || 0); pDead = performance.now() + pStill;
+  { // the screen resends the time every few seconds: follow it only when it moved by more than a moment
+    const run = !!q.run, still = Math.max(0, Number(q.left) || 0), dead = performance.now() + still;
+    if (!run || !pRun || pKey !== q.key || Math.abs(dead - pDead) > 700) pDead = dead;
+    pTot = Math.max(1, Number(q.total) || 60000); pRun = run; pStill = still; pKey = q.key; }
   $("p-bar").hidden = !q.started; $("p-left").hidden = !q.started;
   const canClaim = mine && !perf && !q.started;
   const cb = $("p-claim");
@@ -1482,6 +1553,7 @@ function partyTick(){
   const left = pRun ? Math.max(0, pDead - performance.now()) : pStill;
   $("p-fill").style.transform = "scaleX(" + (left / pTot).toFixed(3) + ")";
   $("p-bar").classList.toggle("warn", left <= 10000);
+  $("p-left").classList.toggle("warn", left > 0 && left <= 10000);
   $("p-left").textContent = left > 0 ? "باقي " + fmt(Math.ceil(left / 1000)) + " ث" + (pRun ? "" : "، والوقت واقف") : "خلص الوقت";
 }
 function claimWord(){
@@ -1504,11 +1576,7 @@ function partyDone(ok){
 }
 
 /* the surprises, said once the cell is open */
-function surpriseNote(q, tid){
-  if (q.minus) return q.minus === tid ? "مفاجأة! اتخصم منكم ١٠٠ نقطة. " : "مفاجأة! اتخصم من " + teamName(q.minus) + " ١٠٠ نقطة. ";
-  if (q.dd) return "مفاجأة! السؤال ده نقطه ضعف. ";
-  return "";
-}
+function surpriseNote(q){ return q.dd ? "مفاجأة! السؤال ده نقطه ضعف. " : ""; }
 function sendAnswer(q, a){
   if (!room || (ansSent && ansSent.key === q.key && Date.now() - ansSent.at < 5000)) return;
   ansSent = Object.assign({key:q.key, at:Date.now()}, a);
@@ -1541,6 +1609,85 @@ function boardFinal(tid){
     h("span",{class:"pos"}, fmt(k + 1)), h("span",{class:"dot","aria-hidden":"true"}), h("span",{class:"nm"}, t.name), h("span",{class:"p"}, fmt(t.score || 0)))));
 }
 
+/* ===== a bot (board-test.html) =====
+   Plays this seat by itself through the same buttons a person has, with no more than a phone knows: it does not know the
+   answers, so it picks a choice at random. On a team that has a person in it, the bots leave the team's moves to the person;
+   otherwise one bot of the team moves for it. */
+const botDone = new Set();
+function botLater(key, ms, fn){
+  if (botDone.has(key)) return;
+  botDone.add(key); if (botDone.size > 500) botDone.delete(botDone.values().next().value);
+  setTimeout(() => { try { if (room) fn(); } catch(e){} }, Math.round(FAST ? ms / 3 : ms));
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+const anyOf = a => a[Math.floor(Math.random() * a.length)];
+const isBotName = n => /\(بوت\)$/.test(String(n || ""));
+const BOT_GUESS = ["القاهرة", "عادل إمام", "النيل", "أم كلثوم", "الإسكندرية", "مش متأكدين"];
+function botCaptain(tid){
+  const mates = players().filter(x => x.team === tid);
+  if (mates.some(x => x.id !== me.pid && !isBotName(x.name))) return false;
+  const ids = mates.filter(x => isBotName(x.name)).map(x => x.id).sort();
+  return !ids.length || ids[0] === me.pid;
+}
+function botTick(){
+  const p = last; if (!p || !room) return;
+  if (p.kind === "board"){ botBoard(p); return; }
+  const q = p.q;     // the speed race
+  if (p.phase !== "question" || !q) return;
+  if (q.style === "buzz"){ if (!q.buzz) botLater("rb:" + q.key, rnd(1500, 7000), () => { if (Math.random() < .5) raceBuzz(); }); return; }
+  botLater("ra:" + qkey(q.i), rnd(1200, Math.max(1500, (Number(q.remain) || 8000) * .7)), () => {
+    const l = last; if (!l || l.phase !== "question" || !l.q || l.q.i !== q.i || myAnswer(q.i) != null || !Array.isArray(q.opts)) return;
+    answer(q, Math.floor(Math.random() * q.opts.length));
+  });
+}
+function botBoard(p){
+  const tid = myTeam(), q = p.q;
+  if (!tid){
+    if (bTeams().length) botLater("team:" + Math.floor(Date.now() / 8000), rnd(600, 1600), () => {
+      const ts = bTeams(); if (!ts.length || myTeam()) return;
+      pickTeam(ts[BOT_TEAM != null ? BOT_TEAM % ts.length : Math.floor(Math.random() * ts.length)].id);
+    });
+    return;
+  }
+  const cap = botCaptain(tid);
+  if (p.phase === "idle" && p.board && p.turn === tid && cap){
+    const B = p.board, played = B.cells.flat().filter(x => x && x !== "x").length;
+    botLater("pick:" + B.gid + ":" + played + ":" + Math.floor(Date.now() / 10000), rnd(1800, 4500), () => {
+      const go = () => {
+        const m = last; if (!m || m.kind !== "board" || m.phase !== "idle" || !m.board || m.turn !== myTeam() || pickSent) return;
+        const open = []; m.board.cells.forEach((row, ci) => row.forEach((st, ri) => { if (st === "") open.push(ci + "-" + ri); }));
+        if (open.length) pick(anyOf(open), m.board.gid);
+      };
+      const l = last;
+      if (l && l.helps && !l.armed && myHelps(tid).includes("dbl") && Math.random() < .25){ sendHelp("dbl"); setTimeout(go, FAST ? 500 : 1500); }
+      else go();
+    });
+    return;
+  }
+  if (!q || p.phase !== "open") return;
+  if (q.style === "party"){
+    if (q.answerer === tid && !q.perf && !q.started && cap) botLater("claim:" + q.key, rnd(1200, 3000), claimWord);
+    if (q.perf && q.perf.pid === me.pid && q.started) botLater("pdone:" + q.key, rnd(8000, 30000), () => partyDone(Math.random() < .65));
+    return;
+  }
+  if (q.answerer === tid && !q.sub){
+    if (!cap) return;
+    botLater("ans:" + q.key + ":" + (q.two || "") + (Array.isArray(q.cut) ? q.cut.length : 0), rnd(3000, 9000), () => {
+      const l = last, x = l && l.q;
+      if (!x || x.key !== q.key || l.phase !== "open" || x.sub || x.answerer !== myTeam()) return;
+      if (x.style === "pick" && Array.isArray(x.opts)){
+        // sometimes «احذف إجابتين» first: the answer comes once two choices are gone
+        if (l.helps && !x.two && myHelps(myTeam()).includes("two") && Math.random() < .2){ sendHelp("two", {key:x.key}); return; }
+        const can = x.opts.map((t, k) => k).filter(k => !(x.cut || []).includes(k));
+        sendAnswer(x, {c:anyOf(can)});
+      } else if (x.style === "type") sendAnswer(x, {texts:[anyOf(BOT_GUESS)]});
+    });
+    return;
+  }
+  if (cap && q.owner !== tid && !q.steal && !q.optsBy && !q.sub && p.helps && myHelps(tid).includes("steal"))
+    botLater("steal:" + q.key, rnd(800, 2500), () => { if (Math.random() < .12) doSteal(); });
+}
+
 /* ===== screen + lifecycle ===== */
 let wl = null;
 async function keepAwake(){ try { if ("wakeLock" in navigator && !wl){ wl = await navigator.wakeLock.request("screen"); wl.addEventListener("release", () => { wl = null; }); } } catch(e){ wl = null; } }
@@ -1551,7 +1698,10 @@ document.addEventListener("visibilitychange", () => {
 
 $("join-form").addEventListener("submit", submitJoin);
 $("in-code").addEventListener("input", e => { const v = cleanCode(e.target.value); if (v !== e.target.value) e.target.value = v; if (v.length === 6 && !$("in-name").value) $("in-name").focus(); });
-$("w-leave").addEventListener("click", () => showJoin());
+$("w-leave").addEventListener("click", () => { if (wAgain && me.code && me.name){ join(me.code, me.name); return; } showJoin(); });
+$("w-team").addEventListener("click", () => { choosing = true; render(); });
+$("g-team").addEventListener("click", () => { choosing = true; render(); });
+$("t-back").addEventListener("click", () => { choosing = false; render(); });
 $("b-form").addEventListener("submit", submitTyped);
 $("p-claim").addEventListener("click", claimWord);
 $("p-ok").addEventListener("click", () => partyDone(true));
@@ -1627,10 +1777,11 @@ function hostAct(id){
 const HOSTM = /^#host-([a-z0-9]{12})$/.exec(location.hash);
 if (HOSTM) hostMain(HOSTM[1]);
 else {
-  // Back on the same room after a reload or a lock screen: rejoin straight away.
+  // Back on the same room after a reload or a lock screen: rejoin straight away. A bot joins by itself.
   const startCode = codeFromUrl();
-  if (startCode && saved.code === startCode && saved.pid && cleanName(saved.name)) join(startCode, cleanName(saved.name));
-  else showJoin();
+  if (BOT && startCode && SEAT_NAME) join(startCode, SEAT_NAME);
+  else if (startCode && saved.code === startCode && saved.pid && cleanName(saved.name)) join(startCode, cleanName(saved.name));
+  else { showJoin(); if (SEAT_NAME && !$("in-name").value) $("in-name").value = SEAT_NAME; }
 }
 })();
 </script>

@@ -695,10 +695,8 @@ button.cell:active{transform:translateY(5px);box-shadow:inset 0 3px 0 rgba(255,2
 /* the surprises: a stamp on the other corner */
 .qstamp.qsurprise{inset-inline-end:auto;inset-inline-start:clamp(18px,4vw,48px);transform:rotate(7deg);background:var(--tile);color:var(--tile-ink);
   box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--tile-edge),0 12px 26px rgba(0,0,0,.35);animation:stamp2 .55s cubic-bezier(.2,1.6,.4,1)}
-.qstamp.qsurprise.minus{background:var(--bad);color:var(--on-bad);box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--bad),0 12px 26px rgba(0,0,0,.35)}
 .qstamp.qsurprise span::before{display:none}
 @keyframes stamp2{from{opacity:0;transform:rotate(7deg) scale(2.4)}}
-.dd.minus{background:var(--bad);color:var(--on-bad)}
 .qunsteal{align-self:center}
 .score .adj .giveback{font-size:.72rem;white-space:nowrap}
 @media (max-width:640px){.qstamp,.qstamp.qsurprise{position:static;transform:rotate(-3deg);margin-top:-6px}@keyframes stamp{from{opacity:0;transform:rotate(-3deg) scale(1.8)}}}
@@ -816,6 +814,7 @@ button.pv.sent{background:var(--hot);color:var(--hot-ink);box-shadow:0 4px 0 var
 .qp-word strong{font-family:var(--f-show);font-weight:700;font-size:clamp(2.2rem,6vw,4.4rem);line-height:1.2;text-shadow:0 0 22px var(--led-glow)}
 .qp-word span{font-weight:600;font-size:1.05rem}
 .qp-word span:empty{display:none}
+.qp-see{user-select:none;-webkit-user-select:none;touch-action:none;-webkit-touch-callout:none}
 .qcard.party .qtext{font-family:var(--f-show);font-weight:700;font-size:clamp(1.6rem,3.6vw,2.8rem)}
 .qcard.party.revealed .qp-rule,.qcard.party.revealed .qp-type{display:none}
 .rsub{margin:0 auto;max-width:52ch;text-align:center;color:var(--cream);opacity:.88;font-size:clamp(1rem,1.8vw,1.3rem);text-wrap:balance}
@@ -960,8 +959,7 @@ body.hostm .me{display:none}
         <div class="field"><span class="lbl" id="l-time">وقت الإجابة</span><div class="seg" id="seg-time" role="group" aria-labelledby="l-time"></div></div>
         <p class="hint" id="turn-rule">كل فريق يختار سؤالًا ويجيب عنه، ثم ينتقل الدور إلى الفريق التالي سواء أجاب صحًا أو خطأ.</p>
         <label class="switch" for="opt-deduct"><input type="checkbox" id="opt-deduct"><span>الإجابة الخاطئة تخصم النقاط</span></label>
-        <label class="switch" for="opt-dd"><input type="checkbox" id="opt-dd"><span>سؤال مضاعف مفاجئ: سؤال مخفي في اللوحة نقاطه مضاعفة، لا يعرف أحد مكانه حتى يُختار</span></label>
-        <label class="switch" for="opt-minus"><input type="checkbox" id="opt-minus"><span>سؤال الخصم المفاجئ: سؤال مخفي، من يختاره يُخصم منه ١٠٠ نقطة فورًا، ثم يجيب عنه كالمعتاد</span></label>
+        <label class="switch" for="opt-dd"><input type="checkbox" id="opt-dd"><span>سؤال مضاعف مفاجئ: سؤال مخفي من أسئلة ١٠٠ إلى ٣٠٠ نقاطه مضاعفة، لا يعرف أحد مكانه حتى يُختار</span></label>
         <label class="switch" for="opt-helps"><input type="checkbox" id="opt-helps"><span>وسائل المساعدة، كل فريق يستخدم كل واحدة مرة واحدة</span></label>
         <ul class="helps-note" id="helps-note">
           <li><b>دبل:</b> يُستخدم قبل اختيار السؤال، ونقاطه تتضاعف للفريق.</li>
@@ -1147,7 +1145,6 @@ body.hostm .me{display:none}
       <span class="qc" id="q-cat"></span>
       <span class="qv" id="q-val"></span>
       <span class="dd" id="q-dd" hidden>سؤال مضاعف</span>
-      <span class="dd minus" id="q-minus" hidden>خصم ١٠٠ نقطة</span>
     </div>
     <p class="qstamp" id="q-stamp" hidden aria-live="assertive"></p>
     <p class="qstamp qsurprise" id="q-surprise" hidden aria-live="assertive"></p>
@@ -1185,6 +1182,7 @@ body.hostm .me{display:none}
       <button class="primary" id="qp-ok" type="button" hidden>خمّنوها</button>
       <button class="ghost" id="qp-no" type="button" hidden>ما خمّنوهاش</button>
       <button class="ghost" id="qp-go" type="button" hidden>ابدأوا الوقت</button>
+      <button class="ghost qp-see" id="qp-see" type="button" hidden title="للمقدّم: الكلمة تظهر ما دام الزر مضغوطًا">اضغط مطوّلًا لترى الكلمة</button>
       <button class="help" id="q-two" type="button" hidden></button>
       <button class="help" id="q-ch" type="button" hidden></button>
       <button class="ghost" id="q-swap" type="button" hidden>سؤال آخر</button>
@@ -1500,7 +1498,10 @@ function applyBrand(b){
 function ENGINE(){
 "use strict";
 
-const KEY = BRAND.storageKey;
+// a test table (board-test.html) runs this screen in a frame with ?seat=…: its own saved game, never the real one, and
+// nothing it plays is logged
+const SEAT = (() => { try { const s = new URLSearchParams(location.search).get("seat"); return s && /^[a-z0-9-]{1,40}$/i.test(s) ? s : ""; } catch(e){ return ""; } })();
+const KEY = BRAND.storageKey + (SEAT ? ":seat:" + SEAT : "");
 const COLORS = BRAND.teamColors || ["#e6b04a","#41c7b4","#f07f66","#b195f5","#a6d15a","#62b8f0"];
 const ORD = ["الفريق الأول","الفريق الثاني","الفريق الثالث","الفريق الرابع","الفريق الخامس","الفريق السادس"];
 const VALUES = [100,200,300,400,500];
@@ -1578,7 +1579,7 @@ function qWord(n){ return n === 1 ? "سؤال واحد" : n === 2 ? "سؤالا�
 function defaults(){
   return {
     teams:[{id:"t1",name:ORD[0],color:COLORS[0]},{id:"t2",name:ORD[1],color:COLORS[1]}],
-    settings:{cols:5,time:30,deduct:false,sound:true,buzz:true,helps:true,manage:"host",dd:true,minus:false},
+    settings:{cols:5,time:30,deduct:false,sound:true,buzz:true,helps:true,manage:"host",dd:true},
     picks:[],
     game:null,
     recent:[],
@@ -1614,7 +1615,14 @@ function normalize(s){
   if (out.game && (!Array.isArray(out.game.cats) || !out.game.used)) out.game = null;
   if (out.game){
     if (!out.game.helps || typeof out.game.helps !== "object") out.game.helps = {};
-    if (typeof out.game.minus !== "string") out.game.minus = null;
+    // the hidden -100 is gone: a game saved with one keeps its scores, and an unplayed one is simply a question again
+    delete out.game.minus;
+    // the hidden double sits on 100 to 300 now: one still hidden on 400 or 500 moves
+    const G = out.game;
+    if (typeof G.dd === "string" && !G.used[G.dd] && Number(G.dd.split("-")[1]) > 2){
+      const c = []; G.cats.forEach((x,ci) => (x.cells || []).forEach((id,ri) => { const k = ci + "-" + ri; if (id && ri <= 2 && !G.used[k]) c.push(k); }));
+      G.dd = c.length ? c[Math.floor(Math.random() * c.length)] : null;
+    }
     const A = out.game.armed;
     if (!(A && typeof A === "object" && A.kind === "dbl" && out.teams.some(t => t.id === A.team))) out.game.armed = null;
   }
@@ -1677,6 +1685,7 @@ let chain = Promise.resolve();
 function queue(fn){ chain = chain.then(fn).catch(() => {}); return chain; }
 const store = {
   async gameStarted(g, teams, cats, mode){
+    if (SEAT) return;
     mode = mode || "board";
     noteClubGame(g, mode);
     if (IN_CLAUDE){
@@ -2273,7 +2282,6 @@ function renderSetupInner(){
   $("help-two-note").replaceChildren(h("b", null, helpName("two") + ":"), auto ? " يُستخدم بعد ظهور السؤال، فتختفي إجابتان خاطئتان من اختيارات الفريق." :" يُستخدم بعد ظهور السؤال، والفريق يقول إجابتين.");
   $("opt-deduct").checked = !!st.deduct;
   $("opt-dd").checked = st.dd !== false;
-  $("opt-minus").checked = !!st.minus;
   $("opt-helps").checked = st.helps !== false;
   $("helps-note").hidden = st.helps === false;
   $("help-opts-note").hidden = auto;
@@ -2371,9 +2379,7 @@ function startGame(){
   fixNames();
   const cats = buildCats();
   const scores = {}; state.teams.forEach(t => scores[t.id] = 0);
-  const live = [];
-  cats.forEach((c,ci) => c.cells.forEach((id,ri) => { if (id && ri >= 2) live.push(ci + "-" + ri); }));
-  state.game = {gid:uuid(), cats, used:{}, dd:null, minus:null, scores, turn:0, plays:[], synced:false, club:clubOn() ? state.club.id : null};
+  state.game = {gid:uuid(), cats, used:{}, dd:null, scores, turn:0, plays:[], synced:false, club:clubOn() ? state.club.id : null};
   placeSurprises(state.game);
   dealNext = true; save(); renderBoard(); setMsg($("board-msg"), "");
   if (phonesOn()){ bLast = null; openBoardRoom(); bPhase = "lobby"; show("lobby"); renderBoardLobby(); bPush(true); }
@@ -2383,17 +2389,17 @@ function startGame(){
   saveClubTeams(g.club, teams);
   return g;
 }
-/* Surprises: a hidden question worth double (300 and up), and a hidden one that costs the team that picks it 100
-   points before it answers. Nobody sees where they are until the cell is opened. */
-const MINUS_PTS = 100;
+/* The surprise: a hidden question worth double, one of the 100 to 300 questions. Nobody sees where it is until the cell
+   is opened. */
+const DD_TOP = 2;    // the row of 300
 function placeSurprises(g){
   const st = state.settings, played = k => !!g.used[k] || !!(cur && cur.key === k);
   const open = [];
   g.cats.forEach((c,ci) => c.cells.forEach((id,ri) => { const k = ci + "-" + ri; if (id && !played(k)) open.push({k, ri}); }));
+  // a game saved when the double could sit on 400 or 500 gets it moved, if it is still hidden
+  if (g.dd && !played(g.dd) && Number(g.dd.split("-")[1]) > DD_TOP) g.dd = null;
   if (st.dd === false){ if (g.dd && !played(g.dd)) g.dd = null; }
-  else if (!g.dd){ const c = open.filter(x => x.ri >= 2 && x.k !== g.minus); g.dd = c.length ? pickOne(c).k : null; }
-  if (!st.minus){ if (g.minus && !played(g.minus)) g.minus = null; }
-  else if (!g.minus){ const c = open.filter(x => x.k !== g.dd); g.minus = c.length ? pickOne(c).k : null; }
+  else if (!g.dd){ const c = open.filter(x => x.ri <= DD_TOP); g.dd = c.length ? pickOne(c).k : null; }
 }
 function recordPlays(entries){
   const g = state.game; if (!g || !entries.length) return;
@@ -2560,7 +2566,6 @@ function renderQHelp(){
   if (cur.two) bits.push(cur.opts ? tnm(cur.two) + " حذف إجابتين." : tnm(cur.two) + " يجيب جوابين.");
   if (cur.optsBy) bits.push(tnm(cur.optsBy) + " استخدم الاختيارات.");
   if (cur.unsteal && !cur.steal) bits.push("أُلغيت سرقة " + tnm(cur.unsteal) + " ورجعت له.");
-  if (cur.minus) bits.push("خُصم " + fmt(MINUS_PTS) + " نقطة من " + tnm(cur.minus) + ".");
   $("q-help").textContent = bits.join(" ");
   const stamp = $("q-stamp"), so = cur.steal ? teamOf(cur.steal) : null;
   if (!so){ stamp.hidden = true; stamp.replaceChildren(); }
@@ -2685,22 +2690,18 @@ function openQ(ci, ri){
   g.armed = null;
   if (a) spendHelp(a.team, a.kind);
   const owner = turnTeam() ? turnTeam().id : null;
-  // the hidden -100: taken from the team that picked the cell now (given back if the question is cancelled)
-  const minus = g.minus === key && owner ? owner : null;
-  if (minus) g.scores[minus] = (g.scores[minus] || 0) - MINUS_PTS;
   cur = {ci, ri, key, value: VALUES[ri] * (dd ? 2 : 1), revealed:false, swapped:false, skipped:null,
     owner, answerer:owner, steal:null, used:a || null, dbl:a ? a.team : null, dblBack:null, two:null, opts:null, cut:[], sub:null,
-    party:partyOf(g.cats[ci].cells[ri]), pstart:false, perf:null, pres:null, dd, minus, optsBy:null, unsteal:null};
+    party:partyOf(g.cats[ci].cells[ri]), pstart:false, perf:null, pres:null, dd, optsBy:null, unsteal:null};
   makeOpts();
   qover.querySelector(".qcard").append($("qflag")); flagCtx = "board"; $("flag-open").textContent = "في السؤال خطأ؟";
   $("q-cat").replaceChildren(iconEl(g.cats[ci].slug), g.cats[ci].name);
   $("q-val").textContent = fmt(cur.value) + " نقطة";
   $("q-dd").hidden = !dd;
-  $("q-minus").hidden = !minus;
   { const sp = $("q-surprise");
-    sp.hidden = !(dd || minus); sp.classList.toggle("minus", !!minus);
-    if (dd || minus){ sp.style.animation = "none"; void sp.offsetWidth; sp.style.animation = "";
-      sp.replaceChildren(h("b", null, "مفاجأة!"), h("span", null, minus ? "خُصم " + fmt(MINUS_PTS) + " نقطة من " + tnm(minus) : "السؤال مضاعف")); } }
+    sp.hidden = !dd;
+    if (dd){ sp.style.animation = "none"; void sp.offsetWidth; sp.style.animation = "";
+      sp.replaceChildren(h("b", null, "مفاجأة!"), h("span", null, "السؤال مضاعف")); } }
   fillQuestion();
   $("q-answer").hidden = true; $("q-pre").hidden = false; $("q-post").hidden = true;
   $("q-answer").querySelector(".lbl").textContent = cur.party ? "الكلمة" : "الإجابة";
@@ -2714,7 +2715,6 @@ function openQ(ci, ri){
   startAnswering();
   renderQHelp(); renderParty();
   if (dd) beep(988, .18, .12);
-  if (minus){ beep(196, .45, .2); setTimeout(() => beep(147, .5, .18), 180); }
   (cur.party ? $("qp-peek") : $("q-reveal")).focus();
 }
 function swapQ(){
@@ -2743,7 +2743,9 @@ function tick(){
   const s = Math.ceil(T.left);
   if (s !== T.lastSec){
     T.lastSec = s;
-    if (s > 0 && s <= 3) beep(660, .09, .12);
+    // the last ten seconds tick out loud, and the last three louder
+    if (s > 0 && s <= 3) beep(880, .11, .15);
+    else if (s > 0 && s <= 10) beep(620, .06, .09);
     if (s === 0){ beep(330, .55, .2); T.running = false; clearInterval(T.iv); if (cur && cur.party) partyTimeUp(); else if (autoOn()) timeUp(); }
   }
   drawTimer();
@@ -2765,7 +2767,7 @@ function toggleTimer(){
   if (T.running){ T.left = Math.max(0, (T.endAt - performance.now()) / 1000); T.running = false; }
   else { T.endAt = performance.now() + T.left * 1000; T.running = true; }
   drawTimer();
-  if (cur && cur.party) bPush(true);
+  bPush(true);
 }
 function stopTimer(){ if (T){ clearInterval(T.iv); T.running = false; } }
 function reveal(){
@@ -2783,7 +2785,7 @@ function reveal(){
 /* party rounds on the board: the word stays hidden until someone from the team sees it (on their phone, on the host's
    phone, or here for five seconds while the others look away); then the team has a minute. The host, or the player
    describing from their phone, says whether the team got it. No steal and no «جاوب جوابين»; دبل counts. */
-let peekIv = 0;
+let peekIv = 0, pSee = false;
 function partyIdleTimer(){
   stopTimer();
   $("q-timer").hidden = false;
@@ -2794,6 +2796,8 @@ function teamPhones(id){ const R = state.broom; return !!(bRoom && R) && Object.
 function renderParty(){
   const on = !!(cur && cur.party);
   ["qp-peek","qp-go","qp-ok","qp-no"].forEach(id => { $(id).hidden = true; });
+  // set once, not hidden and shown again: a held button must keep its focus
+  $("qp-see").hidden = !(on && cur.pstart && !cur.revealed && !cur.peek);
   $("q-reveal").hidden = on;
   if (!on){ $("qp-word").hidden = true; return; }
   const K = PARTY_KIND[cur.party], team = tnm(cur.answerer), live = hostLive();
@@ -2806,7 +2810,8 @@ function renderParty(){
     "اللي هي" + (cur.party === "describe" ? "وصف" : "مثّل") + " يقرّب من الشاشة والباقي يبصّوا بعيد، واضغطوا «اعرضوا الكلمة»." +
     (live ? " أو المقدّم يورّيها له من موبايله." : "");
   $("qp-who").textContent = who;
-  $("qp-word").hidden = !cur.peek;
+  if (!cur.pstart || cur.revealed || cur.peek) pSee = false;
+  $("qp-word").hidden = !(cur.peek || pSee);
   if (cur.revealed) return;
   if (cur.peek){ $("qp-go").hidden = false; $("qp-go").textContent = "خبّوها وابدأوا"; return; }
   if (!cur.pstart){
@@ -2816,6 +2821,13 @@ function renderParty(){
   }
   $("qp-ok").hidden = false; $("qp-no").hidden = false;
 }
+/* the host judges a party round: holding «اضغط مطوّلًا لترى الكلمة» shows the word on the screen until the button is let
+   go, so the host knows what the team is after (the host's phone shows it too, all the time) */
+function partySee(on){
+  on = !!on && !!(cur && cur.party && cur.pstart && !cur.revealed && !cur.peek);
+  if (on === pSee) return;
+  pSee = on; renderParty();
+}
 function partyPeek(){
   if (!cur || !cur.party || cur.revealed || cur.peek || cur.pstart) return;
   primeAudio();
@@ -2823,7 +2835,7 @@ function partyPeek(){
   clearInterval(peekIv);
   peekIv = setInterval(() => { if (!cur || !cur.peek){ clearInterval(peekIv); return; } cur.peek--; if (cur.peek <= 0) partyStart(); else renderParty(); }, 1000);
 }
-function partyHide(){ clearInterval(peekIv); peekIv = 0; if (cur) cur.peek = 0; $("qp-word").hidden = true; }
+function partyHide(){ clearInterval(peekIv); peekIv = 0; if (cur) cur.peek = 0; pSee = false; $("qp-word").hidden = true; }
 function partyStart(){
   if (!cur || !cur.party || cur.revealed) return;
   partyHide();
@@ -2842,7 +2854,8 @@ function partyJudge(ok){
   renderParty();
   if (bRoom){ bPhase = "reveal"; bPush(true); }
   const key = cur.key, id = cur.answerer;
-  autoT = setTimeout(() => { autoT = 0; if (!cur || cur.key !== key) return; if (ok) award(id, true); else nobody(); }, 2200);
+  // the word stays up long enough to read it
+  autoT = setTimeout(() => { autoT = 0; if (!cur || cur.key !== key) return; if (ok) award(id, true); else nobody(); }, 3500);
 }
 function partyTimeUp(){
   // the minute is over: the word is shown. With the system running the game the turn moves on; otherwise the host says.
@@ -3001,7 +3014,6 @@ function cancelQ(){
     if (cur.two) spendHelp(cur.two, "two", true);
     if (cur.steal) spendHelp(cur.steal, "steal", true);
     if (cur.optsBy) spendHelp(cur.optsBy, "opts", true);
-    if (cur.minus) g.scores[cur.minus] = (g.scores[cur.minus] || 0) + MINUS_PTS;
     save();
   }
   clearTimeout(autoT); autoT = 0; partyHide();
@@ -3696,7 +3708,8 @@ function bPublic(){
     teams:state.teams.map((t,i) => ({id:t.id, name:tname(t,i), color:t.color, score:g ? (g.scores[t.id] || 0) : 0, won:g ? wonBy(g, t.id) : 0,
       helps:g ? HELP_KINDS.filter(k => helpHere(k) && hasHelp(t.id, k)) : []})),
     players:R ? Object.entries(R.players).map(([id,p]) => ({id, name:p.name, team:p.team || null})) : [], last:bLast,
-    helps:helpsOn(), armed:armedNow(), kicked:R && R.kicked ? R.kicked : [], roomName:R && R.club && clubOf(R.club) ? clubOf(R.club).name : null};
+    helps:helpsOn(), armed:armedNow(), kicked:R && R.kicked ? R.kicked : [], roomName:R && R.club && clubOf(R.club) ? clubOf(R.club).name : null,
+    swap:canSwap()};
   if (g){
     // the board as phones see it: "" open, "x" no question, "-" nobody answered, or the id of the team that won it
     s.turn = state.teams[g.turn] ? state.teams[g.turn].id : null;
@@ -3710,7 +3723,7 @@ function bPublic(){
     s.q = {key:bKey(), cat:g.cats[cur.ci].name, slug:g.cats[cur.ci].slug, val:cur.value, style:"party", party:cur.party,
       owner:cur.owner, answerer:cur.answerer, dbl:cur.dbl || null, dblBack:cur.dblBack || null, type:cur.party === "act" ? ACT_TYPE[q.l] : null,
       perf:cur.perf ? {pid:cur.perf.pid, name:cur.perf.name} : null, started:!!cur.pstart, run:!!(T && T.running && cur.pstart), left, total:PARTY_TIME * 1000,
-      dd:!!cur.dd, minus:cur.minus || null};
+      dd:!!cur.dd};
     if (bPhase === "open" && cur.perf && !cur.revealed) s.q.secret = {to:cur.perf.pid, w:q.w, ban:cur.party === "describe" ? q.ban : []};
     if (bPhase === "reveal"){ s.q.answer = q.w; if (cur.pres) s.q.ok = cur.pres === "ok"; }
   }
@@ -3721,8 +3734,10 @@ function bPublic(){
       // "pick": the answering team picks one of the choices; "type": it can type its answer for the host
       style:cur.opts ? "pick" : "type", opts:cur.opts ? cur.opts.map(o => o.t) : null, cut:cur.cut,
       sub:cur.sub ? {team:cur.sub.team, c:cur.sub.c != null ? cur.sub.c : null, texts:cur.sub.texts || null, none:!!cur.sub.none} : null,
-      canOpts:!!(cur.answerer && canOpts(cur.answerer)), optsBy:cur.optsBy || null, dd:!!cur.dd, minus:cur.minus || null};
+      canOpts:!!(cur.answerer && canOpts(cur.answerer)), optsBy:cur.optsBy || null, dd:!!cur.dd};
     if (okImg(rec.q.img)) s.q.img = rec.q.img;
+    // the countdown, for the phones to show it too
+    if (T && bPhase === "open" && !cur.revealed) s.q.t = {left:Math.round(1000 * Math.max(0, T.running ? (T.endAt - performance.now()) / 1000 : T.left)), total:T.total * 1000, run:!!T.running};
     if (bPhase === "reveal"){
       s.q.answer = rec.q.a;
       if (okImg(rec.q.img) && okImg(rec.q.rimg)) s.q.rimg = rec.q.rimg;
@@ -3739,6 +3754,8 @@ function bPush(now){
   bSendT = setTimeout(() => { bSendT = 0; if (bRoom && state.broom) bRoom.send("state", bPublic()); }, 200);
 }
 function setBPhase(p){ if (!bRoom) return; bPhase = p; bPush(true); }
+// a player may change team from their phone until the first question of the game is played (the host can move anyone, any time)
+const canSwap = () => !cur && !(state.game && Object.keys(state.game.used).length);
 function onBoardPhone(ev, p){
   const R = state.broom;
   if (!R || !p || typeof p.pid !== "string" || !p.pid || p.pid.length > 64) return;
@@ -3759,6 +3776,15 @@ function onBoardPhone(ev, p){
     else if (pl.name !== name || (!pl.team && team)){ pl.name = name; if (!pl.team) pl.team = team; save(); if (R.club && pl.team) rememberPlayer(R.club, p.pid, pl.name, pl.team); }
     else if (!fresh) return;
     renderBoardLobby(); renderRoomChip(); bPush();
+    return;
+  }
+  if (ev === "team"){
+    const pl = R.players[p.pid], tm = typeof p.team === "string" ? teamOf(p.team) : null;
+    if (!pl || !tm || pl.team === p.team || (pl.team && !canSwap())){ bPush(); return; }
+    seen[p.pid] = Date.now();
+    pl.team = p.team; save();
+    if (R.club) rememberPlayer(R.club, p.pid, pl.name, pl.team);
+    renderBoardLobby(); renderRoomChip(); bPush(true);
     return;
   }
   if (ev === "pick"){
@@ -3818,7 +3844,7 @@ function renderBoardLobby(){
   drawJoin(R.code);
   $("r-plan").textContent = "كل واحد يدخل باسمه ويختار فريقه، واللوحة تظهر على موبايله. الفريق اللي عليه الدور يختار السؤال من الموبايل." +
     (autoOn() ? " وبعدها يختار الإجابة من ٤ اختيارات، والنظام يحكم." : " ويقدر يكتب إجابته من الموبايل.") +
-    (helpsOn() ? " وأي فريق معاه «سرقة السؤال» يقدر يسرقه من موبايله أول ما يظهر." : "") + " لو حد اختار فريق غلط، اضغطوا على اسمه هنا لنقله." +
+    (helpsOn() ? " وأي فريق معاه «سرقة السؤال» يقدر يسرقه من موبايله أول ما يظهر." : "") + " ولحد ما اللعب يبدأ، كل واحد يقدر يغيّر فريقه من موبايله، أو اضغطوا على اسمه هنا لنقله." +
     (R.club ? " واللي لعبوا في الغرفة قبل كده بيدخلوا فرقهم لوحدهم." : "");
   const now = Date.now(), list = Object.entries(R.players);
   const c = R.club ? clubOf(R.club) : null;
@@ -3935,7 +3961,7 @@ function hCtx(){
   const g = state.game, R = state.race, F = state.feud;
   if (g && cur && !qover.hidden){
     const q = cellQ(g, cur.ci, cur.ri).q, pk = q.party, nm = tnm(cur.answerer);
-    const c = {head:"لوحة الفئات، " + fmt(cur.dbl ? valFor(cur.dbl) : cur.value) + " نقطة، " + nm + (cur.dbl ? "، دبل" : "") + (cur.dd ? "، سؤال مضاعف" : "") + (cur.minus ? "، اتخصم ١٠٠" : ""), cat:g.cats[cur.ci].name,
+    const c = {head:"لوحة الفئات، " + fmt(cur.dbl ? valFor(cur.dbl) : cur.value) + " نقطة، " + nm + (cur.dbl ? "، دبل" : "") + (cur.dd ? "، سؤال مضاعف" : ""), cat:g.cats[cur.ci].name,
       text:pk ? PARTY_KIND[pk].rule : q.q, alabel:pk ? "الكلمة" : "الإجابة", big:q.a,
       img:!pk && okImg(q.img) ? (cur.revealed && okImg(q.rimg) ? q.rimg : q.img) : null,
       extra:pk === "describe" ? "ممنوع: " + q.ban.join("، ") : pk === "act" ? "النوع: " + ACT_TYPE[q.l] : [q.note || "", Array.isArray(q.alt) && q.alt.length ? "مقبول كمان: " + q.alt.join("، ") : ""].filter(Boolean).join(" "),
@@ -4274,7 +4300,6 @@ function bind(){
   $("opt-deduct").addEventListener("change", e => { state.settings.deduct = e.target.checked; save(); });
   // the surprises follow the switches, on this board too (a surprise already played stays as it was)
   $("opt-dd").addEventListener("change", e => { state.settings.dd = e.target.checked; if (state.game){ placeSurprises(state.game); } save(); });
-  $("opt-minus").addEventListener("change", e => { state.settings.minus = e.target.checked; if (state.game){ placeSurprises(state.game); } save(); });
   $("opt-rdeduct").addEventListener("change", e => { state.raceSettings.deduct = e.target.checked; save(); });
   $("r-ok").addEventListener("click", () => judgeRace(true));
   $("r-bad").addEventListener("click", () => judgeRace(false));
@@ -4333,6 +4358,12 @@ function bind(){
 
   $("q-reveal").addEventListener("click", reveal);
   $("qp-peek").addEventListener("click", partyPeek);
+  { const b = $("qp-see");
+    b.addEventListener("pointerdown", e => { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch(err){} partySee(true); });
+    ["pointerup","pointercancel","lostpointercapture","blur"].forEach(t => b.addEventListener(t, () => partySee(false)));
+    b.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter"){ e.preventDefault(); partySee(true); } });
+    b.addEventListener("keyup", e => { if (e.key === " " || e.key === "Enter") partySee(false); });
+    b.addEventListener("contextmenu", e => e.preventDefault()); }
   $("qp-go").addEventListener("click", partyStart);
   $("qp-ok").addEventListener("click", () => partyJudge(true));
   $("qp-no").addEventListener("click", () => partyJudge(false));

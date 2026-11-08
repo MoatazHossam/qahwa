@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>طاولة التجربة · لوحة الفئات · قهوة الطيبين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marhey:wght@500;700&family=Readex+Pro:wght@400;500;600;700&display=swap">
+<style>
+/* A test table for «لوحة الفئات»: the game screen in a frame on this page (its own saved game, nothing logged), and every
+   phone frame a separate player, a person or a bot. */
+:root{
+  --plum:#0A2E35; --plum-2:#0F3F47; --plum-3:#14505A; --line:rgba(255,244,220,.14); --line-2:rgba(255,244,220,.32);
+  --cream:#FFF4DC; --muted:#A9D2CF; --ink:#10222A; --amber:#F2672E; --amber-deep:#B6461A; --host:#8FD3F4; --bot:#F4A7B9;
+  --f-show:"Marhey","Readex Pro",system-ui,Tahoma,sans-serif; --f-body:"Readex Pro",system-ui,"Segoe UI",Tahoma,sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--plum);color:var(--cream);font-family:var(--f-body);font-size:16px;line-height:1.55}
+header{padding:18px 20px 6px;max-width:1500px;margin:0 auto}
+h1{margin:0;font-family:var(--f-show);font-weight:700;color:var(--cream);font-size:1.8rem}
+h2{margin:0;font-family:var(--f-show);font-weight:700;font-size:1.15rem}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.88rem}
+.settings{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 20px;max-width:1500px;margin:0 auto}
+.settings label{display:flex;gap:8px;align-items:center}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;padding:6px 20px 12px;max-width:1500px;margin:0 auto}
+.card{background:var(--plum-2);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input,select{font:inherit;color:var(--cream);background:var(--plum);border:1px solid var(--line-2);border-radius:12px;padding:9px 12px}
+input[type=checkbox]{width:20px;height:20px;padding:0;accent-color:var(--amber)}
+input.code{width:7.5em;font-family:var(--f-show);font-size:1.3rem;letter-spacing:.2em;text-align:center;direction:ltr}
+button{font:inherit;cursor:pointer}
+.btn{font-family:var(--f-show);font-weight:700;font-size:1.05rem;border:0;border-radius:14px;padding:10px 18px;background:var(--amber);color:var(--cream);box-shadow:0 3px 0 var(--amber-deep)}
+.btn.ghost{background:transparent;color:var(--cream);border:1px solid var(--line-2);box-shadow:none;font-family:var(--f-body);font-weight:500}
+.btn[disabled]{opacity:.45;cursor:default}
+.bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:0 20px 8px;max-width:1500px;margin:0 auto}
+.msg{color:#FFC93C;font-size:.95rem}
+.msg.err{color:#FF7A6B}
+.msg:empty{display:none}
+.tv{padding:6px 20px 0;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:6px}
+.tv .lbl{display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
+.tvwrap{position:relative;width:100%;max-width:1100px;aspect-ratio:1280/760;overflow:hidden;border:1px solid var(--line-2);border-radius:16px;direction:ltr;background:#000}
+.tvwrap iframe{position:absolute;top:0;left:0;width:1280px;height:760px;border:0;transform-origin:0 0}
+.grid{display:flex;flex-wrap:wrap;gap:14px;padding:10px 20px 30px;max-width:1500px;margin:0 auto}
+.seat{display:flex;flex-direction:column;gap:6px}
+.seat .lbl{display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
+.seat .tag{font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--bot);color:var(--ink)}
+.seat .tag.me{background:var(--host)}
+.seat iframe{width:320px;height:680px;border:1px solid var(--line-2);border-radius:20px;background:var(--plum)}
+@media (max-width:420px){.seat iframe{width:calc(100vw - 40px)}}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>طاولة التجربة · لوحة الفئات</h1>
+  <p class="muted">الشاشة هنا لعبة تجربة لوحدها: مش بتلمس لعبتك المحفوظة، ومش بتتسجل. وكل مربع موبايل لاعب لوحده. البوتات بتلعب بنفس الزراير اللي في أي موبايل، ومش عارفة الإجابات، فبتختار عشوائي.</p>
+</header>
+<div class="settings" role="group" aria-label="إعدادات لعبة التجربة">
+  <label>الفرق <select id="o-teams"><option value="2" selected>فريقين</option><option value="3">٣ فرق</option></select></label>
+  <label>مين يدير <select id="o-manage"><option value="auto" selected>النظام (٤ اختيارات)</option><option value="host">المقدّم</option></select></label>
+  <label><input type="checkbox" id="o-party" checked> فيها «الوصف» و«بدون كلام»</label>
+  <label>سرعة البوتات <select id="speed"><option value="">عادية</option><option value="fast">سريعة</option></select></label>
+</div>
+<section class="controls">
+  <div class="card">
+    <h2>ماتش بوتات كامل</h2>
+    <p class="small muted">الشاشة تتجهّز لوحدها، والبوتات تدخل وتختار فرقها وتلعب، وإنت تتفرّج على الشاشة وكل الموبايلات مرة واحدة.</p>
+    <div class="row">
+      <select id="b-n" aria-label="بوتات في كل فريق"><option value="1">بوت في كل فريق</option><option value="2" selected>٢ في كل فريق</option><option value="3">٣ في كل فريق</option></select>
+      <label class="small"><input type="checkbox" id="b-me"> وإنت كمان معاهم</label>
+      <button class="btn" type="button" id="b-go">ابدأ واتفرّج</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>العب كل الموبايلات بنفسك</h2>
+    <p class="small muted">الشاشة هنا وكل الموبايلات قدامك ومن غير بوتات: اضغط «ادخل» في كل موبايل واختار فريقه، وبعدين «ابدأوا اللعب» على الشاشة.</p>
+    <div class="row">
+      <select id="m-n" aria-label="عدد الموبايلات"><option value="2">موبايلين</option><option value="3">٣ موبايلات</option><option value="4" selected>٤ موبايلات</option></select>
+      <button class="btn" type="button" id="m-go">جهّز الموبايلات</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>ضيف بوتات للعبتك</h2>
+    <p class="small muted">افتح لوحة الفئات على شاشتك والموبايلات شغالة، وحط رقم الغرفة هنا. البوتات هتدخل وتتوزع على الفرق بالدور.</p>
+    <div class="row">
+      <input class="code" id="c-code" inputmode="numeric" maxlength="6" aria-label="رقم الغرفة" placeholder="1234">
+      <select id="c-n" aria-label="عدد البوتات"><option value="2">بوتين</option><option value="4" selected>٤ بوتات</option><option value="6">٦ بوتات</option></select>
+      <button class="btn" type="button" id="c-go">ضيف البوتات</button>
+    </div>
+  </div>
+</section>
+<div class="bar">
+  <button class="btn ghost" type="button" id="clear">شيل الكل</button>
+  <p class="small muted">خلّي الصفحة دي مفتوحة. عشان تسمع صوت العداد، اضغط مرة جوه الشاشة.</p>
+  <p class="msg" id="msg" role="alert"></p>
+</div>
+<section class="tv" id="tvbox" hidden aria-label="شاشة اللعبة">
+  <div class="lbl"><span class="seatn">الشاشة</span></div>
+  <div class="tvwrap" id="tvwrap"></div>
+</section>
+<main class="grid" id="grid" aria-label="الموبايلات"></main>
+
+<script>
+(() => {
+"use strict";
+const BRAND = {"storageKey": "qahwa-tayebeen:v1", "brandId": "5d3277bb-001d-4bbe-b43b-255d4076b749", "teamColors": ["#F2672E", "#E8558A", "#4FA3E0", "#3CC07A", "#A47CF3", "#2EC4B6"], "teamColorsPrev": ["#F2D06B", "#8FD3F4", "#F4A7B9", "#B8E08A", "#F6B26B", "#C9B6F2"]};
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat("ar-EG");
+const NAMES = ["سارة","عمر","نور","كريم","ليلى","يوسف","هبة","زياد","منى"];   // bots get "(بوت)" after the name
+const run = "bt" + Date.now().toString(36);
+const rt = new URLSearchParams(location.search).get("rt");   // the tests' local realtime relay, passed on
+let count = 0, job = 0;
+
+// the saved games of earlier test tables are dropped (each table has its own)
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--){
+    const k = localStorage.key(i);
+    if (k && k.startsWith(BRAND.storageKey) && k.includes(":seat:bt") && !k.includes(run)) localStorage.removeItem(k);
+  }
+} catch(e){}
+
+const say = (t, err) => { $("msg").textContent = t || ""; $("msg").classList.toggle("err", !!err); };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(fn, ms, my){
+  const t0 = Date.now();
+  for (;;){
+    if (my !== job) throw new Error("stopped");
+    let v = null; try { v = fn(); } catch(e){}
+    if (v) return v;
+    if (Date.now() - t0 > ms) throw new Error("timeout");
+    await sleep(150);
+  }
+}
+function phoneUrl(o){
+  const q = new URLSearchParams();
+  q.set("seat", run + "-" + (++count));
+  if (o.bot) q.set("bot", "1");
+  if (o.name) q.set("name", o.name);
+  if (o.team != null) q.set("team", String(o.team));
+  if ($("speed").value) q.set("speed", $("speed").value);
+  if (rt) q.set("rt", rt);
+  return "play.html?" + q.toString() + (o.code ? "#" + o.code : "");
+}
+function seat(o){
+  const f = document.createElement("iframe");
+  f.src = phoneUrl(o); f.title = (o.bot ? "بوت: " : "موبايل: ") + (o.name || "");
+  const wrap = document.createElement("div"); wrap.className = "seat";
+  const lbl = document.createElement("div"); lbl.className = "lbl";
+  const tag = document.createElement("span"); tag.className = "tag" + (o.bot ? "" : " me"); tag.textContent = o.bot ? "بوت" : "إنت";
+  lbl.append(tag, document.createTextNode(o.name || ""));
+  wrap.append(lbl, f); $("grid").append(wrap);
+}
+const bots = (n, code) => { for (let i = 0; i < n; i++) seat({bot:true, name:NAMES[i % NAMES.length] + " (بوت)", team:i, code}); };
+
+/* the game screen in a frame, set up the way a host would: lobby open, phones on */
+function fit(){ const f = $("tvwrap").firstElementChild; if (f) f.style.transform = "scale(" + ($("tvwrap").clientWidth / 1280).toFixed(4) + ")"; }
+window.addEventListener("resize", fit);
+function tvOpen(){
+  const f = document.createElement("iframe");
+  const q = new URLSearchParams(); q.set("seat", run + "-tv" + (++count)); if (rt) q.set("rt", rt);
+  f.src = "index.html?" + q.toString(); f.title = "شاشة اللعبة"; f.id = "tv";
+  $("tvwrap").replaceChildren(f); $("tvbox").hidden = false; fit();
+  return f;
+}
+async function tvSetup(f, my){
+  const d = await until(() => { const d = f.contentDocument; return d && d.querySelector("#scr-setup:not([hidden])") && d.querySelector("#go") ? d : null; }, 40000, my);
+  const q = s => d.querySelector(s);
+  const mode = q('#modes [data-mode="board"]'); if (mode) mode.click();
+  const teams = Number($("o-teams").value);
+  for (let i = 0; i < 6 && d.querySelectorAll("#teams > li").length < teams; i++) q("#add-team").click();
+  const ph = q("#opt-phones"); if (ph && !ph.checked) ph.click();
+  const want = $("o-manage").value === "auto" ? "النظام" : "المقدّم";
+  const mg = [...d.querySelectorAll("#seg-manage button")].find(b => b.textContent.includes(want)); if (mg) mg.click();
+  if ($("o-party").checked) d.querySelectorAll(".catpick.party").forEach(b => { if (b.getAttribute("aria-pressed") !== "true" && !b.disabled) b.click(); });
+  q("#go").click();
+  const code = await until(() => { const c = q("#scr-lobby:not([hidden]) #r-code"); const t = c ? c.textContent.trim() : ""; return /^\d{4,6}$/.test(t) ? t : null; }, 20000, my);
+  return {d, code, teams};
+}
+function clear(){ job++; $("grid").replaceChildren(); $("tvwrap").replaceChildren(); $("tvbox").hidden = true; say(""); }
+$("clear").addEventListener("click", clear);
+
+$("b-go").addEventListener("click", async () => {
+  clear(); const my = job;
+  say("الشاشة بتتجهّز…");
+  try {
+    const f = tvOpen(), {d, code, teams} = await tvSetup(f, my);
+    const n = Number($("b-n").value) * teams, me = $("b-me").checked;
+    bots(n, code);
+    if (me) seat({bot:false, name:"إنت", code});
+    say("الغرفة " + code + ": البوتات داخلة." + (me ? " ادخل من الموبايل الأخير واختار فريقك، وبعدين اضغط «ابدأوا اللعب» على الشاشة." : " اللعب هيبدأ لوحده أول ما يدخلوا."));
+    if (me) return;
+    await until(() => d.querySelectorAll("#r-players li .dot").length >= n, 40000, my);
+    await sleep(800);
+    const st = d.querySelector("#scr-lobby:not([hidden]) #r-start"); if (st) st.click();
+    say("الغرفة " + code + ": البوتات بتلعب.");
+  } catch(e){ if (my === job) say("الشاشة ما اتجهزتش. جرّب تاني، أو افتحها بنفسك من «ضيف بوتات للعبتك».", true); }
+});
+$("m-go").addEventListener("click", async () => {
+  clear(); const my = job;
+  say("الشاشة بتتجهّز…");
+  try {
+    const f = tvOpen(), {code} = await tvSetup(f, my);
+    const n = Number($("m-n").value);
+    for (let i = 0; i < n; i++) seat({bot:false, name:"لاعب " + nf.format(i + 1), code});
+    say("الغرفة " + code + ": اضغط «ادخل» في كل موبايل واختار فريقه، وبعدين «ابدأوا اللعب» على الشاشة.");
+  } catch(e){ if (my === job) say("الشاشة ما اتجهزتش. جرّب تاني.", true); }
+});
+$("c-go").addEventListener("click", () => {
+  const code = $("c-code").value.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/\D/g, "");
+  if (!/^(\d{4}|\d{6})$/.test(code)){ say("اكتب رقم الغرفة اللي على الشاشة (٤ أو ٦ أرقام).", true); return; }
+  say("البوتات داخلة الغرفة " + code + ".");
+  bots(Number($("c-n").value), code);
+});
+})();
+</script>
+</body>
+</html>
