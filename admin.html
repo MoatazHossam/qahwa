@@ -97,6 +97,9 @@ main>*,.panel,.stack>*{min-width:0}
 .notes li{background:var(--sunk);border-radius:8px;padding:8px 12px;font-size:.9rem}
 .notes li .when{color:var(--muted);font-size:.8rem;margin-inline-start:8px}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
+.ptsrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.ptsrow .seg button{min-width:3.4em;font-variant-numeric:tabular-nums}
+.ptsrow .msg{padding:4px 10px}
 .answers{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:.92rem}
 .answers li{display:flex;gap:10px} .answers .pts{color:var(--muted);min-width:2.5em}
 .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:var(--sunk);color:var(--ink-2);font-size:.78rem;font-weight:500}
@@ -761,7 +764,7 @@ function decide(table, item, editFn){
 function reviewQ(q){
   const src = REV.sources[q.id], res = REV.research[q.id] || [];
   return h("article",{class:"report review","data-id":q.id},
-    h("div",{class:"where"}, h("span", null, qBrands(q).map(brandName).join("، ")), h("span", null, catName(q.category_id)), h("span", null, "المستوى " + fmt(q.level)), q.batch ? h("span", null, q.batch) : null),
+    h("div",{class:"where"}, h("span", null, qBrands(q).map(brandName).join("، ")), h("span", null, catName(q.category_id)), q.batch ? h("span", null, q.batch) : null),
     h("p",{class:"q"}, q.question),
     picsOf(q),
     h("dl",{class:"kv"},
@@ -772,7 +775,24 @@ function reviewQ(q){
     res.length ? h("div",{class:"checks"}, res.map(x => h("p", null, h("span",{class:"tag" + (x.verdict === "ok" ? " ok" : x.verdict === "fixed" ? " warn" : " bad")}, VERDICT[x.verdict] || x.verdict || "مراجعة"), " ", x.notes || ""))) : null,
     src == null ? h("p",{class:"muted small"}, "بيحمّل المصادر…")
       : h("ol",{class:"srcs"}, src.length ? src.map(r => h("li", null, h("a",{href:r.url,target:"_blank",rel:"noopener noreferrer"}, r.title || r.url))) : h("li",{class:"muted"}, "مفيش مصادر مسجلة.")),
+    ptsPick(q),
     decide("questions", q, () => editQuestion(q, false)));
+}
+/* the points of a question waiting for review (its level: 100 for level 1 … 500 for level 5), changed right on its
+   card and saved at once */
+function ptsPick(q){
+  const msg = h("span",{class:"msg err",role:"alert",hidden:true});
+  const bs = [1,2,3,4,5].map(l => h("button",{type:"button","aria-pressed":q.level === l ? "true" : "false","aria-label":fmt(l * 100) + " نقطة (المستوى " + fmt(l) + ")"}, fmt(l * 100)));
+  const show = l => bs.forEach((b,i) => b.setAttribute("aria-pressed", i + 1 === l ? "true" : "false"));
+  bs.forEach((b,i) => b.addEventListener("click", async () => {
+    const l = i + 1, was = q.level;
+    if (l === was) return;
+    show(l); msg.hidden = true; bs.forEach(x => x.disabled = true);
+    try { await api("/questions?id=eq." + q.id, {method:"PATCH", body:{level:l}, prefer:"return=minimal"}); q.level = l; }
+    catch(e){ show(was); msg.textContent = "ماقدرناش نغيّر النقاط. جرب تاني."; msg.hidden = false; }
+    finally { bs.forEach(x => x.disabled = false); }
+  }));
+  return h("div",{class:"ptsrow"}, h("span",{class:"muted small"}, "النقاط"), h("div",{class:"seg",role:"group","aria-label":"نقاط السؤال"}, bs), msg);
 }
 function reviewRound(r){
   return h("article",{class:"report review","data-id":r.id},
