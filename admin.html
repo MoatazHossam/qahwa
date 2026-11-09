@@ -127,6 +127,17 @@ tbody tr.click:hover{background:var(--sunk)}
 td .sub{display:block;color:var(--muted);font-size:.82rem;margin-top:2px}
 .qcell{min-width:260px;max-width:520px}
 .more{display:flex;justify-content:center;padding:12px}
+.pager{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 16px}
+.pager .pg{min-width:2.5em;justify-content:center;padding:6px 10px;font-variant-numeric:tabular-nums}
+.pager .pg[aria-current="page"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pager .gap{color:var(--muted);padding:0 2px}
+.pager input.jump{width:5.5em;padding:6px 10px}
+.pager .info{margin-inline-start:auto}
+.pagedone{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.chk{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.82rem;color:var(--muted);cursor:pointer;width:max-content}
+.chk input{width:16px;height:16px;margin:0;accent-color:var(--ok)}
+tr.done td{background:color-mix(in srgb,var(--ok-soft) 55%,transparent)}
+tr.done .chk{color:var(--ok)}
 
 /* capacity grid */
 table.cap{width:auto;min-width:min(100%,640px)}
@@ -401,7 +412,7 @@ async function load(){
     apiAll("/brands?select=id,slug,name,theme", "created_at.asc,id.asc", "id"),
     apiAll("/brand_packs?select=brand_id,pack_id", "brand_id.asc,pack_id.asc"),
     apiAll("/categories?select=id,pack_id,slug,name,sort", "sort.asc,id.asc", "id"),
-    apiAll("/questions?select=id,category_id,level,question,answer,accepted_answers,wrong_options,host_note,media_url,reveal_media_url,status,version,built_version,batch,updated_at", "level.asc,id.asc", "id"),
+    apiAll("/questions?select=id,category_id,level,question,answer,accepted_answers,wrong_options,host_note,media_url,reveal_media_url,status,version,built_version,batch,updated_at,checked_at", "level.asc,id.asc", "id"),
     apiAll("/admin_question_stats?select=*", "question_id.asc", "question_id"),
     apiAll("/admin_feedback_stats?select=*", "question_id.asc", "question_id"),
     apiAll("/flags?select=id,question_id,feud_round_id,game_id,note,status,created_at,item_version,resolution,resolved_at", "created_at.desc,id.desc", "id"),
@@ -428,6 +439,7 @@ async function load(){
   D.flags = flags; D.feud = feud; D.feudById = Object.fromEntries(feud.map(r => [r.id, r]));
   D.feudStat = Object.fromEntries(feudst.map(s => [s.round_id, s]));
   D.games = games;
+  if (!qRestored){ qRestored = true; restoreQView(); }
   render();
 }
 const brandsOfPack = id => D.packBrands[id] || [];
@@ -524,8 +536,29 @@ async function act(btn, fn){
 function showLoadErr(t){ const m = $("load-msg"); m.textContent = t; m.hidden = false; }
 
 /* ---------- questions ---------- */
-const qFilter = {cat:"", level:"", status:"playable", q:"", sort:"shown", kind:""};
+const qFilter = {cat:"", level:"", status:"playable", q:"", sort:"shown", kind:"", chk:""};
 let qPage = 1;
+const QPER = 60;   // questions per page
+/* the list's brand, filters and page are kept for the next visit (not the search), so the review goes on where it
+   stopped; read once, when the data first arrives */
+const QV = LS + ":questions";
+let qRestored = false;
+function saveQView(){
+  try { localStorage.setItem(QV, JSON.stringify({brand, page:qPage, f:{cat:qFilter.cat, level:qFilter.level, status:qFilter.status, sort:qFilter.sort, kind:qFilter.kind, chk:qFilter.chk}})); } catch(e){}
+}
+function restoreQView(){
+  let v = null; try { v = JSON.parse(localStorage.getItem(QV)); } catch(e){}
+  if (!v || typeof v !== "object") return;
+  const f = v.f || {}, one = (x, ok) => typeof x === "string" && ok.includes(x) ? x : null;
+  if (v.brand === "all" || D.brands.some(b => b.id === v.brand)) brand = v.brand;
+  if (typeof f.cat === "string" && (!f.cat || D.catById[f.cat])) qFilter.cat = f.cat;
+  qFilter.level = one(f.level, ["","1","2","3","4","5"]) ?? qFilter.level;
+  qFilter.status = one(f.status, ["playable","draft","flagged","retired","all"]) ?? qFilter.status;
+  qFilter.sort = one(f.sort, ["shown","hard","easy","dislike","skip","level","cat"]) ?? qFilter.sort;
+  qFilter.kind = one(f.kind, ["","img","text"]) ?? qFilter.kind;
+  qFilter.chk = one(f.chk, ["","no","yes"]) ?? qFilter.chk;
+  if (Number.isInteger(v.page) && v.page >= 1) qPage = v.page;
+}
 let qView = null;   // the questions list's order for its current filters and sort: {key, pos}
 function qRate(s){ if (!s) return null; const d = s.correct + s.wrong + s.nobody; return d ? s.correct / d : null; }
 // capacity: playable questions per category and level
@@ -557,6 +590,7 @@ function renderQuestions(){
     sel("qf-level","المستوى", qFilter.level, [["","كل المستويات"], ...[1,2,3,4,5].map(l => [String(l), "مستوى " + fmt(l)])], v => qFilter.level = v),
     sel("qf-kind","النوع", qFilter.kind, [["","كل الأنواع"],["img","بصورة"],["text","كلام بس"]], v => qFilter.kind = v),
     sel("qf-status","الحالة", qFilter.status, [["playable","شغال"],["draft","مستني مراجعة"],["flagged","مسحوب"],["retired","ملغي"],["all","الكل"]], v => qFilter.status = v),
+    sel("qf-chk","المراجعة", qFilter.chk, [["","الكل"],["no","لسه ما اتراجعتش"],["yes","اتراجعت"]], v => qFilter.chk = v),
     sel("qf-sort","الترتيب", qFilter.sort, [["shown","الأكثر لعبًا"],["hard","الأصعب"],["easy","الأسهل"],["dislike","الأقل إعجابًا"],["skip","الأكثر تبديلًا"],["level","المستوى محتاج مراجعة"],["cat","الفئة والمستوى"]], v => qFilter.sort = v));
   filters.append(h("button",{class:"btn primary newq",type:"button",id:"q-new",onclick:newQuestion}, "سؤال جديد"));
   const tablePanel = h("div",{class:"panel",id:"q-panel"}, h("div",{class:"bd"}, filters), h("div",{id:"q-table"}));
@@ -573,6 +607,8 @@ function filteredQs(){
   else if (qFilter.status === "flagged") list = list.filter(q => q.status === "flagged");
   else if (qFilter.status === "retired") list = list.filter(q => q.status === "retired");
   if (t) list = list.filter(q => q.question.includes(t) || q.answer.includes(t) || (q.accepted_answers || []).some(a => a.includes(t)));
+  if (qFilter.chk === "no") list = list.filter(q => !q.checked_at);
+  else if (qFilter.chk === "yes") list = list.filter(q => !!q.checked_at);
   const st = q => D.qstat[q.id] || {shown:0, correct:0, wrong:0, nobody:0, skipped:0};
   const fb = q => D.fstat[q.id] || {likes:0, dislikes:0, suggestions:0, avg_suggested:null};
   const rate = q => qRate(st(q));
@@ -586,25 +622,31 @@ function filteredQs(){
     cat:(a,b) => ((D.catById[a.category_id] || {}).sort - (D.catById[b.category_id] || {}).sort) || a.level - b.level
   };
   function gap(q){ const f = fb(q); return f.avg_suggested == null ? -1 : Math.abs(Number(f.avg_suggested) - q.level); }
-  // sorted once for these filters and this sort, then kept: a change of points, a save or a reload leaves the rows where
-  // they are (a new question goes at the end); choosing other filters or another sort orders the list again
-  const key = JSON.stringify([brand, qFilter.cat, qFilter.level, qFilter.status, qFilter.kind, t, qFilter.sort]);
+  // sorted once for these filters and this sort, then kept, rows and order: a change of status, points or «اتراجع»,
+  // a save or a reload leaves every row where it is, so the pages never shift (a new question goes at the end).
+  // Choosing other filters or another sort, or «رتّب القائمة من جديد», draws the list again.
+  const key = JSON.stringify([brand, qFilter.cat, qFilter.level, qFilter.status, qFilter.kind, t, qFilter.sort, qFilter.chk]);
   const sorted = list.slice().sort(by[qFilter.sort] || by.shown);
-  if (!qView || qView.key !== key) qView = {key, pos:new Map(sorted.map((q,i) => [q.id, i]))};
-  else sorted.forEach(q => { if (!qView.pos.has(q.id)) qView.pos.set(q.id, qView.pos.size); });
-  return sorted.sort((a,b) => qView.pos.get(a.id) - qView.pos.get(b.id));
+  if (!qView || qView.key !== key) qView = {key, ids:sorted.map(q => q.id)};
+  else { const have = new Set(qView.ids); sorted.forEach(q => { if (!have.has(q.id)) qView.ids.push(q.id); }); }
+  const fits = new Set(sorted.map(q => q.id));
+  qView.stale = qView.ids.some(id => !fits.has(id));
+  return qView.ids.map(id => D.qById[id]).filter(Boolean);
 }
 function renderQTable(){
-  const list = filteredQs(), shown = list.slice(0, qPage * 60);
+  const list = filteredQs();
   const wrap = $("q-table"); if (!wrap) return;
-  if (!list.length){ wrap.replaceChildren(h("p",{class:"empty"}, "مفيش أسئلة بالفلاتر دي.")); return; }
+  if (!list.length){ wrap.replaceChildren(h("p",{class:"empty"}, "مفيش أسئلة بالفلاتر دي.")); saveQView(); return; }
+  const pages = Math.ceil(list.length / QPER);
+  qPage = Math.min(Math.max(1, qPage), pages);
+  const shown = list.slice((qPage - 1) * QPER, qPage * QPER);
   const rows = shown.map(q => {
     const s = D.qstat[q.id] || {}, f = D.fstat[q.id] || {}, r = qRate(s);
     const sug = f.avg_suggested == null ? null : Number(f.avg_suggested);
-    return h("tr",{class:"click",tabindex:"0",onclick:() => editQuestion(q, false),onkeydown:e => { if (e.key === "Enter") editQuestion(q, false); }},
+    return h("tr",{class:"click" + (q.checked_at ? " done" : ""),tabindex:"0",onclick:() => editQuestion(q, false),onkeydown:e => { if (e.key === "Enter") editQuestion(q, false); }},
       h("td",{class:"qcell"}, okImg(q.media_url) ? h("img",{class:"thumb",src:q.media_url,alt:"",loading:"lazy"}) : null, q.question, h("span",{class:"sub"}, q.answer)),
       h("td", null, catName(q.category_id)),
-      h("td", null, statusPick(q)),
+      h("td", null, statusPick(q), chkBox(q)),
       h("td",{class:"n"}, ptsSelect(q)),
       h("td",{class:"n"}, fmt(s.shown || 0)),
       h("td",{class:"n"}, r == null ? "—" : pf.format(r * 100) + "٪"),
@@ -617,8 +659,69 @@ function renderQTable(){
     h("div",{class:"tbl-wrap"}, h("table", null,
       h("thead", null, h("tr", null, h("th", null, "السؤال والإجابة"), h("th", null, "الفئة"), h("th", null, "الحالة"), h("th",{class:"n"}, "النقاط"), h("th",{class:"n"}, "اتلعب"), h("th",{class:"n"}, "الصح"), h("th",{class:"n"}, "متوسط الزمن"), h("th",{class:"n"}, "إعجاب / لأ"), h("th",{class:"n"}, "مستوى مقترح"), h("th",{class:"n"}, "اتبدّل"))),
       h("tbody", null, rows))),
-    h("div",{class:"more"}, h("span",{class:"muted small"}, "معروض " + fmt(shown.length) + " من " + fmt(list.length)),
-      shown.length < list.length ? h("button",{class:"btn",type:"button",style:"margin-inline-start:12px",onclick:() => { qPage++; renderQTable(); }}, "عرض أكتر") : null));
+    pageDone(shown),
+    pager(list.length, pages, false));
+  wrap.prepend(pager(list.length, pages, true));
+  saveQView();
+}
+/* the pages: the previous and next one, the first, the last and the two on each side of this one, and a box to jump to
+   any page */
+const arNum = x => Number(String(x).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[^0-9]/g, "") || NaN);
+function pager(total, pages, top){
+  const go = p => { qPage = p; renderQTable(); if (!top){ const t = $("q-table"); if (t) t.scrollIntoView({block:"start"}); } };
+  const nums = []; let last = 0;
+  [...new Set([1, pages, qPage - 2, qPage - 1, qPage, qPage + 1, qPage + 2])].filter(x => x >= 1 && x <= pages).sort((a,b) => a - b).forEach(x => {
+    if (x - last > 1) nums.push(h("span",{class:"gap","aria-hidden":"true"}, "…"));
+    nums.push(h("button",{type:"button",class:"btn pg","aria-current":x === qPage ? "page" : null,"aria-label":"صفحة " + fmt(x),onclick:() => go(x)}, fmt(x)));
+    last = x;
+  });
+  let jump = null;
+  if (pages > 7){
+    jump = h("input",{type:"text",class:"jump",inputmode:"numeric","aria-label":"روح لصفحة رقم",placeholder:"صفحة…"});
+    jump.addEventListener("keydown", e => { if (e.key === "Enter"){ const x = arNum(jump.value); if (x >= 1 && x <= pages) go(x); } });
+  }
+  const from = (qPage - 1) * QPER;
+  return h("nav",{class:"pager","aria-label":top ? "صفحات الأسئلة" : "صفحات الأسئلة، تحت"},
+    h("button",{type:"button",class:"btn",disabled:qPage <= 1 ? true : null,onclick:() => go(qPage - 1)}, "السابقة"),
+    nums,
+    h("button",{type:"button",class:"btn",disabled:qPage >= pages ? true : null,onclick:() => go(qPage + 1)}, "التالية"),
+    jump,
+    top && qView && qView.stale ? h("button",{type:"button",class:"btn",title:"يشيل اللي ما بقاش مطابق للفلاتر ويرتّب تاني",onclick:() => { qView = null; qPage = 1; renderQTable(); }}, "رتّب القائمة من جديد") : null,
+    h("span",{class:"muted small info"}, "صفحة " + fmt(qPage) + " من " + fmt(pages) + "، الأسئلة " + fmt(from + 1) + "–" + fmt(Math.min(from + QPER, total)) + " من " + fmt(total)));
+}
+/* «اتراجع»: the admin's own mark that a question has been gone through (questions.checked_at), one by one or the whole
+   page at once; the games never read it */
+function chkBox(q){
+  const box = h("input",{type:"checkbox","data-chk":q.id});
+  box.checked = !!q.checked_at;
+  const lab = h("label",{class:"chk"}, box, "اتراجع");
+  ["click","pointerdown","keydown"].forEach(t => lab.addEventListener(t, e => e.stopPropagation()));
+  box.addEventListener("change", async () => {
+    const at = box.checked ? new Date().toISOString() : null, was = q.checked_at;
+    box.disabled = true;
+    try {
+      await api("/questions?id=eq." + q.id, {method:"PATCH", body:{checked_at:at}, prefer:"return=minimal"});
+      q.checked_at = at; renderQTable();
+      const again = document.querySelector('#q-table input[data-chk="' + q.id + '"]'); if (again) again.focus();
+    } catch(e){ box.checked = !!was; box.disabled = false; showLoadErr("ماقدرناش نحفظ «اتراجع». جرب تاني."); }
+  });
+  return lab;
+}
+function pageDone(shown){
+  const left = shown.filter(q => !q.checked_at);
+  const btn = h("button",{type:"button",class:"btn primary",disabled:left.length ? null : true}, "علّم الصفحة كلها: اتراجعت");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const at = new Date().toISOString();
+    try {
+      await api("/questions?id=in.(" + left.map(q => q.id).join(",") + ")", {method:"PATCH", body:{checked_at:at}, prefer:"return=minimal"});
+      left.forEach(q => { q.checked_at = at; });
+      renderQTable();
+    } catch(e){ btn.disabled = false; showLoadErr("ماقدرناش نعلّم الصفحة. جرب تاني."); }
+  });
+  return h("div",{class:"pagedone"},
+    h("span",{class:"muted small"}, left.length ? "اتراجع " + fmt(shown.length - left.length) + " من " + fmt(shown.length) + " في الصفحة دي." : "كل أسئلة الصفحة دي اتراجعت."),
+    btn);
 }
 
 /* the status of a question in the list, changed without opening the question and saved at once, as the editor saves
@@ -810,7 +913,7 @@ async function loadReviewExtras(ids){
     src.forEach(x => { if (REV.sources[x.question_id]) REV.sources[x.question_id].push(x); });
     res.forEach(x => { if (REV.research[x.question_id]) REV.research[x.question_id].push(x); });
   }
-  if (tab === "review") renderReview();
+  renderReview();
 }
 function bulkBar(title, n, table, ids){
   const yes = h("button",{class:"btn primary",type:"button"}, "اعتمد الكل (" + fmt(n) + ")");
