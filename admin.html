@@ -100,6 +100,9 @@ main>*,.panel,.stack>*{min-width:0}
 .ptsrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
 .ptsrow .seg button{min-width:3.4em;font-variant-numeric:tabular-nums}
 .ptsrow .msg{padding:4px 10px}
+select.stsel{width:auto;min-width:8.5em;padding:4px 8px;cursor:pointer}
+select.stsel.warn{background:var(--warn-bg);color:var(--warn-ink)}
+select.stsel.bad{background:var(--bad-soft);color:var(--bad)}
 select.ptsel{width:auto;min-width:5.6em;padding:4px 8px;font-variant-numeric:tabular-nums;cursor:pointer}
 .answers{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:.92rem}
 .answers li{display:flex;gap:10px} .answers .pts{color:var(--muted);min-width:2.5em}
@@ -387,6 +390,9 @@ const playable = x => x.status === "verified" || x.status === "published";
 const statusTag = x => x.status === "verified" || x.status === "published" ? null
   : h("span",{class:"sub"}, h("span",{class:"tag" + (x.status === "retired" ? " bad" : x.status === "draft" ? " warn" : "")}, STATUS[x.status]));
 
+// the order the questions first came in (by points), kept while the page is open: changing a question's points, a
+// save or a reload never moves a question or the ones around it (the review queue, and ties in the questions list)
+const QPOS = new Map();
 async function load(){
   $("load-msg").hidden = true;
   const since = new Date(Date.now() - 90 * 86400000).toISOString();
@@ -414,6 +420,8 @@ async function load(){
   D.brands = brands; D.packBrands = {};
   bp.forEach(x => (D.packBrands[x.pack_id] = D.packBrands[x.pack_id] || []).push(x.brand_id));
   D.cats = cats; D.catById = Object.fromEntries(cats.map(c => [c.id, c]));
+  qs.forEach(q => { if (!QPOS.has(q.id)) QPOS.set(q.id, QPOS.size); });
+  qs.sort((a,b) => QPOS.get(a.id) - QPOS.get(b.id));
   D.qs = qs; D.qById = Object.fromEntries(qs.map(q => [q.id, q]));
   D.qstat = Object.fromEntries(qst.map(s => [s.question_id, s]));
   D.fstat = Object.fromEntries(fst.map(s => [s.question_id, s]));
@@ -518,6 +526,7 @@ function showLoadErr(t){ const m = $("load-msg"); m.textContent = t; m.hidden = 
 /* ---------- questions ---------- */
 const qFilter = {cat:"", level:"", status:"playable", q:"", sort:"shown", kind:""};
 let qPage = 1;
+let qView = null;   // the questions list's order for its current filters and sort: {key, pos}
 function qRate(s){ if (!s) return null; const d = s.correct + s.wrong + s.nobody; return d ? s.correct / d : null; }
 // capacity: playable questions per category and level
 function capPanel(cats){
@@ -577,7 +586,13 @@ function filteredQs(){
     cat:(a,b) => ((D.catById[a.category_id] || {}).sort - (D.catById[b.category_id] || {}).sort) || a.level - b.level
   };
   function gap(q){ const f = fb(q); return f.avg_suggested == null ? -1 : Math.abs(Number(f.avg_suggested) - q.level); }
-  return list.slice().sort(by[qFilter.sort] || by.shown);
+  // sorted once for these filters and this sort, then kept: a change of points, a save or a reload leaves the rows where
+  // they are (a new question goes at the end); choosing other filters or another sort orders the list again
+  const key = JSON.stringify([brand, qFilter.cat, qFilter.level, qFilter.status, qFilter.kind, t, qFilter.sort]);
+  const sorted = list.slice().sort(by[qFilter.sort] || by.shown);
+  if (!qView || qView.key !== key) qView = {key, pos:new Map(sorted.map((q,i) => [q.id, i]))};
+  else sorted.forEach(q => { if (!qView.pos.has(q.id)) qView.pos.set(q.id, qView.pos.size); });
+  return sorted.sort((a,b) => qView.pos.get(a.id) - qView.pos.get(b.id));
 }
 function renderQTable(){
   const list = filteredQs(), shown = list.slice(0, qPage * 60);
@@ -588,7 +603,8 @@ function renderQTable(){
     const sug = f.avg_suggested == null ? null : Number(f.avg_suggested);
     return h("tr",{class:"click",tabindex:"0",onclick:() => editQuestion(q, false),onkeydown:e => { if (e.key === "Enter") editQuestion(q, false); }},
       h("td",{class:"qcell"}, okImg(q.media_url) ? h("img",{class:"thumb",src:q.media_url,alt:"",loading:"lazy"}) : null, q.question, h("span",{class:"sub"}, q.answer)),
-      h("td", null, catName(q.category_id), statusTag(q)),
+      h("td", null, catName(q.category_id)),
+      h("td", null, statusPick(q)),
       h("td",{class:"n"}, ptsSelect(q)),
       h("td",{class:"n"}, fmt(s.shown || 0)),
       h("td",{class:"n"}, r == null ? "—" : pf.format(r * 100) + "٪"),
@@ -599,12 +615,38 @@ function renderQTable(){
   });
   wrap.replaceChildren(
     h("div",{class:"tbl-wrap"}, h("table", null,
-      h("thead", null, h("tr", null, h("th", null, "السؤال والإجابة"), h("th", null, "الفئة"), h("th",{class:"n"}, "النقاط"), h("th",{class:"n"}, "اتلعب"), h("th",{class:"n"}, "الصح"), h("th",{class:"n"}, "متوسط الزمن"), h("th",{class:"n"}, "إعجاب / لأ"), h("th",{class:"n"}, "مستوى مقترح"), h("th",{class:"n"}, "اتبدّل"))),
+      h("thead", null, h("tr", null, h("th", null, "السؤال والإجابة"), h("th", null, "الفئة"), h("th", null, "الحالة"), h("th",{class:"n"}, "النقاط"), h("th",{class:"n"}, "اتلعب"), h("th",{class:"n"}, "الصح"), h("th",{class:"n"}, "متوسط الزمن"), h("th",{class:"n"}, "إعجاب / لأ"), h("th",{class:"n"}, "مستوى مقترح"), h("th",{class:"n"}, "اتبدّل"))),
       h("tbody", null, rows))),
     h("div",{class:"more"}, h("span",{class:"muted small"}, "معروض " + fmt(shown.length) + " من " + fmt(list.length)),
       shown.length < list.length ? h("button",{class:"btn",type:"button",style:"margin-inline-start:12px",onclick:() => { qPage++; renderQTable(); }}, "عرض أكتر") : null));
 }
 
+/* the status of a question in the list, changed without opening the question and saved at once, as the editor saves
+   it (approving a draft records who approved it). The row stays where it is, even when it no longer fits the status
+   filter, until the list is drawn again; the counts per level and the review badge follow. */
+function statusPick(q){
+  const cur = () => q.status === "published" ? "verified" : q.status;
+  const sel = h("select",{class:"stsel","aria-label":"حالة السؤال"},
+    [["verified","شغال"],["draft","مستني مراجعة"],["flagged","مسحوب"],["retired","ملغي"]].map(([v,l]) => h("option",{value:v, selected:cur() === v ? true : null}, l)));
+  const paint = () => { sel.classList.toggle("warn", cur() === "draft" || cur() === "flagged"); sel.classList.toggle("bad", cur() === "retired"); };
+  paint();
+  ["click","pointerdown","keydown"].forEach(t => sel.addEventListener(t, e => e.stopPropagation()));
+  sel.addEventListener("change", async () => {
+    const v = sel.value, was = cur();
+    if (v === was) return;
+    const body = {status:v};
+    if (v === "verified" && q.status === "draft") Object.assign(body, approvedBy());
+    sel.disabled = true;
+    try {
+      await api("/questions?id=eq." + q.id, {method:"PATCH", body, prefer:"return=minimal"});
+      Object.assign(q, body); paint();
+      const cap = $("q-cap"); if (cap) cap.replaceWith(capPanel(D.cats.filter(c => inBrand(brandsOfPack(c.pack_id)))));
+      renderReview();   // the review badge (the panel itself is hidden behind this tab)
+    } catch(e){ sel.value = was; showLoadErr("ماقدرناش نغيّر الحالة. جرب تاني."); }
+    finally { sel.disabled = false; }
+  });
+  return sel;
+}
 /* the points of a question in the list (its level: 100 for level 1 … 500 for level 5), changed without opening the
    question and saved at once; the row stays where it is until the list is drawn again */
 function ptsSelect(q){
