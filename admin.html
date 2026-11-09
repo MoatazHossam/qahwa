@@ -100,6 +100,7 @@ main>*,.panel,.stack>*{min-width:0}
 .ptsrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
 .ptsrow .seg button{min-width:3.4em;font-variant-numeric:tabular-nums}
 .ptsrow .msg{padding:4px 10px}
+select.ptsel{width:auto;min-width:5.6em;padding:4px 8px;font-variant-numeric:tabular-nums;cursor:pointer}
 .answers{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:.92rem}
 .answers li{display:flex;gap:10px} .answers .pts{color:var(--muted);min-width:2.5em}
 .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:var(--sunk);color:var(--ink-2);font-size:.78rem;font-weight:500}
@@ -518,11 +519,9 @@ function showLoadErr(t){ const m = $("load-msg"); m.textContent = t; m.hidden = 
 const qFilter = {cat:"", level:"", status:"playable", q:"", sort:"shown", kind:""};
 let qPage = 1;
 function qRate(s){ if (!s) return null; const d = s.correct + s.wrong + s.nobody; return d ? s.correct / d : null; }
-function renderQuestions(){
-  const box = $("p-questions");
-  const cats = D.cats.filter(c => inBrand(brandsOfPack(c.pack_id)));
-  // capacity: playable questions per category and level
-  const cap = h("div",{class:"panel"},
+// capacity: playable questions per category and level
+function capPanel(cats){
+  return h("div",{class:"panel",id:"q-cap"},
     h("div",{class:"hd"}, h("h2", null, "الأسئلة المتاحة لكل مستوى"), h("span",{class:"muted small"}, "اللوحة بتاخد سؤال من كل مستوى في الفئة، فأقل رقم في الصف هو عدد الألعاب قبل ما الفئة تتكرر على نفس الشلة. المظلل أقل من " + fmt(MIN_PER_LEVEL) + ".")),
     h("div",{class:"tbl-wrap"}, h("table",{class:"cap"},
       h("thead", null, h("tr", null, h("th", null, "الفئة"), [1,2,3,4,5].map(l => h("th",{class:"n"}, "مستوى " + fmt(l))), h("th",{class:"n"}, "الإجمالي"))),
@@ -533,6 +532,11 @@ function renderQuestions(){
           counts.map(n => h("td",{class:"c" + (n < MIN_PER_LEVEL ? " low" : "") + (n === min ? " minc" : "")}, fmt(n))),
           h("td",{class:"c"}, fmt(counts.reduce((a,b) => a + b, 0))));
       })))));
+}
+function renderQuestions(){
+  const box = $("p-questions");
+  const cats = D.cats.filter(c => inBrand(brandsOfPack(c.pack_id)));
+  const cap = capPanel(cats);
   // filters
   const sel = (id, label, val, opts, on) => h("label",{class:"field"}, h("span", null, label),
     h("select",{id, onchange:e => { on(e.target.value); qPage = 1; renderQuestions(); }}, opts.map(([v,l]) => h("option",{value:v, selected:v === val ? true : null}, l))));
@@ -585,7 +589,7 @@ function renderQTable(){
     return h("tr",{class:"click",tabindex:"0",onclick:() => editQuestion(q, false),onkeydown:e => { if (e.key === "Enter") editQuestion(q, false); }},
       h("td",{class:"qcell"}, okImg(q.media_url) ? h("img",{class:"thumb",src:q.media_url,alt:"",loading:"lazy"}) : null, q.question, h("span",{class:"sub"}, q.answer)),
       h("td", null, catName(q.category_id), statusTag(q)),
-      h("td",{class:"n"}, fmt(q.level)),
+      h("td",{class:"n"}, ptsSelect(q)),
       h("td",{class:"n"}, fmt(s.shown || 0)),
       h("td",{class:"n"}, r == null ? "—" : pf.format(r * 100) + "٪"),
       h("td",{class:"n"}, s.avg_ms ? pf.format(s.avg_ms / 1000) + " ث" : "—"),
@@ -595,10 +599,31 @@ function renderQTable(){
   });
   wrap.replaceChildren(
     h("div",{class:"tbl-wrap"}, h("table", null,
-      h("thead", null, h("tr", null, h("th", null, "السؤال والإجابة"), h("th", null, "الفئة"), h("th",{class:"n"}, "المستوى"), h("th",{class:"n"}, "اتلعب"), h("th",{class:"n"}, "الصح"), h("th",{class:"n"}, "متوسط الزمن"), h("th",{class:"n"}, "إعجاب / لأ"), h("th",{class:"n"}, "مستوى مقترح"), h("th",{class:"n"}, "اتبدّل"))),
+      h("thead", null, h("tr", null, h("th", null, "السؤال والإجابة"), h("th", null, "الفئة"), h("th",{class:"n"}, "النقاط"), h("th",{class:"n"}, "اتلعب"), h("th",{class:"n"}, "الصح"), h("th",{class:"n"}, "متوسط الزمن"), h("th",{class:"n"}, "إعجاب / لأ"), h("th",{class:"n"}, "مستوى مقترح"), h("th",{class:"n"}, "اتبدّل"))),
       h("tbody", null, rows))),
     h("div",{class:"more"}, h("span",{class:"muted small"}, "معروض " + fmt(shown.length) + " من " + fmt(list.length)),
       shown.length < list.length ? h("button",{class:"btn",type:"button",style:"margin-inline-start:12px",onclick:() => { qPage++; renderQTable(); }}, "عرض أكتر") : null));
+}
+
+/* the points of a question in the list (its level: 100 for level 1 … 500 for level 5), changed without opening the
+   question and saved at once; the row stays where it is until the list is drawn again */
+function ptsSelect(q){
+  const sel = h("select",{class:"ptsel","aria-label":"نقاط السؤال"},
+    [1,2,3,4,5].map(l => h("option",{value:String(l), selected:q.level === l ? true : null}, fmt(l * 100))));
+  // the row opens the question: not when the points are being changed
+  ["click","pointerdown","keydown"].forEach(t => sel.addEventListener(t, e => e.stopPropagation()));
+  sel.addEventListener("change", async () => {
+    const l = Number(sel.value), was = q.level;
+    if (l === was) return;
+    sel.disabled = true;
+    try {
+      await api("/questions?id=eq." + q.id, {method:"PATCH", body:{level:l}, prefer:"return=minimal"});
+      q.level = l;
+      const cap = $("q-cap"); if (cap) cap.replaceWith(capPanel(D.cats.filter(c => inBrand(brandsOfPack(c.pack_id)))));
+    } catch(e){ sel.value = String(was); showLoadErr("ماقدرناش نغيّر النقاط. جرب تاني."); }
+    finally { sel.disabled = false; }
+  });
+  return sel;
 }
 
 /* ---------- games ---------- */
