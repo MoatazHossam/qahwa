@@ -1100,7 +1100,7 @@ function sbPanel(){
 /* «أقرب رقم»: a question whose answer is a year or a number; the closest guess wins. Each answer was checked against
    the sources listed with it; the notes say what a reviewer should know (rounding, a disputed date, which event is
    meant). Players see the question, the unit, and after the round the answer with its line. */
-const CL_CAT = {egypt:"مصر", art:"فن", sport:"رياضة", life:"حياتنا"};
+const CL_CAT = {egypt:"مصر", art:"فن", sport:"رياضة", life:"حياتنا", world:"العالم", ent:"ترفيه", arab:"الوطن العربي", weird:"غرايب"};
 const clNum = (n, kind) => kind === "year" ? new Intl.NumberFormat("ar-EG", {useGrouping:false}).format(n) : fmt(n);
 function clSources(x){
   const ss = x.sources || [];
