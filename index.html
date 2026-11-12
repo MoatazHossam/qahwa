@@ -444,6 +444,8 @@ body{
 .mode{font-family:var(--f-show);font-weight:700;font-size:1.05rem;padding:9px 18px 10px;border-radius:14px;color:var(--cream);background:var(--wash);box-shadow:inset 0 0 0 2px var(--line)}
 .mode .ico{width:22px;height:22px}
 .mode.is-on{background:var(--hot);color:var(--hot-ink);box-shadow:0 5px 0 var(--hot-deep)}
+/* six modes: on a laptop the row tightens so the sign-in button stays beside it */
+@media (min-width:561px) and (max-width:1500px){.modes{gap:6px}.mode{font-size:1rem;padding:8px 12px 9px}}
 .resume{background:var(--hot);color:var(--hot-ink);border-radius:18px;box-shadow:0 6px 0 var(--hot-deep)}
 .resume .secondary{border-color:var(--hot-ink);color:var(--hot-ink);border-width:2px}
 .team-row{gap:12px}
@@ -912,6 +914,7 @@ body.hostm .me{display:none}
       <button class="mode" type="button" data-mode="feud">أشهر إجابة</button>
       <button class="mode" type="button" id="ut-open" aria-haspopup="dialog">تحت الترابيزة</button>
       <button class="mode" type="button" id="sb-open" aria-haspopup="dialog">نفس الدماغ</button>
+      <button class="mode" type="button" id="cl-open" aria-haspopup="dialog">أقرب رقم</button>
     </nav>
     <button class="acct" id="acct" type="button" hidden></button>
   </header>
@@ -1297,6 +1300,21 @@ body.hostm .me{display:none}
     <p class="hint">يمسح أحدكم الرمز ويفتح غرفة، ويدخل الباقون من الرمز الذي يظهر على هاتفه.</p>
     <div class="end-actions">
       <button class="primary" type="button" id="sb-close">حسنًا</button>
+    </div>
+  </div>
+</div>
+
+<!-- «أقرب رقم»: a phones-only game; this screen only shows how to start it -->
+<div class="over" id="clover" hidden role="dialog" aria-modal="true" aria-labelledby="cl-h" dir="rtl" lang="ar">
+  <div class="endcard invcard hostcard">
+    <h2 class="end-w" id="cl-h">أقرب رقم 📏</h2>
+    <p class="end-k">مش لازم تعرف الإجابة… كفاية تكون الأقرب.</p>
+    <p class="hint">سؤال واحد للجميع جوابه سنة أو رقم، ويكتب كل لاعب تخمينه سرًّا على هاتفه. الأقرب إلى الإجابة يكسب نقطة، ومن يصيبها بالضبط يكسب نقطتين، وإن تساوى أكثر من لاعب في القرب كسبوا جميعًا. من لاعبَين إلى ١٢ لاعبًا.</p>
+    <div class="qr" id="cl-qr" role="img" aria-label="رمز QR لصفحة أقرب رقم"></div>
+    <p class="hint" id="cl-url" dir="ltr"></p>
+    <p class="hint">يمسح أحدكم الرمز ويفتح غرفة ويختار عدد الأسئلة، ويدخل الباقون من الرمز الذي يظهر على هاتفه.</p>
+    <div class="end-actions">
+      <button class="primary" type="button" id="cl-close">حسنًا</button>
     </div>
   </div>
 </div>
@@ -3941,6 +3959,16 @@ function openSb(){
   $("sbover").hidden = false; $("sb-close").focus();
 }
 function closeSb(){ $("sbover").hidden = true; if (sbBack && sbBack.focus) sbBack.focus(); }
+let clBack = null;
+const clUrl = () => { const u = new URL("closest.html", location.href); u.search = ""; u.hash = ""; return u.href; };
+function openCl(){
+  clBack = document.activeElement;
+  const box = $("cl-qr");
+  try { const qr = qrcode(0, "M"); qr.addData(clUrl()); qr.make(); box.innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true}); } catch(e){ box.textContent = ""; }
+  $("cl-url").textContent = clUrl().replace(/^https?:\/\//, "");
+  $("clover").hidden = false; $("cl-close").focus();
+}
+function closeCl(){ $("clover").hidden = true; if (clBack && clBack.focus) clBack.focus(); }
 function closeUt(){ $("utover").hidden = true; if (utBack && utBack.focus) utBack.focus(); }
 function closeHost(){ $("hostover").hidden = true; if (hostBack && hostBack.focus) hostBack.focus(); }
 let hWasLive = false;
@@ -4375,6 +4403,9 @@ function bind(){
   $("sb-open").addEventListener("click", openSb);
   $("sb-close").addEventListener("click", closeSb);
   $("sbover").addEventListener("keydown", e => { if (e.key === "Escape") closeSb(); });
+  $("cl-open").addEventListener("click", openCl);
+  $("cl-close").addEventListener("click", closeCl);
+  $("clover").addEventListener("keydown", e => { if (e.key === "Escape") closeCl(); });
   $("host-new").addEventListener("click", rotateHost);
   $("r-peek").addEventListener("click", racePeek);
   $("q-swap").addEventListener("click", swapQ);

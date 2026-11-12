@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>طاولة التجربة · أقرب رقم · قهوة الطيبين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marhey:wght@500;700&family=Readex+Pro:wght@400;500;600;700&display=swap">
+<style>
+/* A test table for «أقرب رقم» on one screen: every frame is a separate player (its own seat), a person or a bot. */
+:root{
+  --plum:#0A2E35; --plum-2:#0F3F47; --plum-3:#14505A; --line:rgba(255,244,220,.14); --line-2:rgba(255,244,220,.32);
+  --cream:#FFF4DC; --muted:#A9D2CF; --ink:#10222A; --amber:#F2672E; --amber-deep:#B6461A; --host:#8FD3F4; --bot:#F4A7B9;
+  --f-show:"Marhey","Readex Pro",system-ui,Tahoma,sans-serif; --f-body:"Readex Pro",system-ui,"Segoe UI",Tahoma,sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--plum);color:var(--cream);font-family:var(--f-body);font-size:16px;line-height:1.55}
+header{padding:18px 20px 6px;max-width:1500px;margin:0 auto}
+h1{margin:0;font-family:var(--f-show);font-weight:700;color:var(--cream);font-size:1.8rem}
+h2{margin:0;font-family:var(--f-show);font-weight:700;font-size:1.15rem}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.88rem}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;padding:12px 20px;max-width:1500px;margin:0 auto}
+.card{background:var(--plum-2);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input,select{font:inherit;color:var(--cream);background:var(--plum);border:1px solid var(--line-2);border-radius:12px;padding:9px 12px}
+input.code{width:7.5em;font-family:var(--f-show);font-size:1.3rem;letter-spacing:.2em;text-align:center;direction:ltr}
+button{font:inherit;cursor:pointer}
+.btn{font-family:var(--f-show);font-weight:700;font-size:1.05rem;border:0;border-radius:14px;padding:10px 18px;background:var(--amber);color:var(--cream);box-shadow:0 3px 0 var(--amber-deep)}
+.btn.ghost{background:transparent;color:var(--cream);border:1px solid var(--line-2);box-shadow:none;font-family:var(--f-body);font-weight:500}
+.btn[disabled]{opacity:.45;cursor:default}
+.bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:0 20px 8px;max-width:1500px;margin:0 auto}
+.msg{color:#FFC93C;font-size:.95rem}
+.msg.err{color:#FF7A6B}
+.msg:empty{display:none}
+.grid{display:flex;flex-wrap:wrap;gap:14px;padding:10px 20px 30px;max-width:1500px;margin:0 auto}
+.seat{display:flex;flex-direction:column;gap:6px}
+.seat .lbl{display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
+.seat .tag{font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--bot);color:var(--ink)}
+.seat .tag.me{background:var(--host)}
+.seat iframe{width:340px;height:720px;border:1px solid var(--line-2);border-radius:20px;background:var(--plum)}
+@media (max-width:420px){.seat iframe{width:calc(100vw - 40px)}}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>طاولة التجربة · أقرب رقم</h1>
+  <p class="muted">كل مربع هنا لاعب لوحده، زي موبايل منفصل. البوتات بتلعب لوحدها بنفس اللي أي موبايل يقدر يعمله، ومعندهاش أي ميزة.</p>
+</header>
+<section class="controls">
+  <div class="card">
+    <h2>ضيف بوتات لغرفتي</h2>
+    <p class="small muted">افتح غرفة من موبايلك (<a href="./closest.html" style="color:var(--muted)">أقرب رقم</a>)، وحط رقمها هنا. البوتات هتدخل وتخمّن، وإنت المضيف بتبدأ وتكمّل من موبايلك.</p>
+    <div class="row">
+      <input class="code" id="c-code" inputmode="numeric" maxlength="5" aria-label="رقم الغرفة" placeholder="12345">
+      <select id="c-n" aria-label="عدد البوتات"><option value="1">بوت واحد (لاعبين)</option><option value="3" selected>٣ بوتات (٤ لاعبين)</option><option value="5">٥ بوتات (٦ لاعبين)</option><option value="9">٩ بوتات (١٠ لاعبين)</option></select>
+      <button class="btn" type="button" id="c-go">ضيف البوتات</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>ماتش بوتات كامل</h2>
+    <p class="small muted">البوتات تفتح الغرفة وتلعب خمس أسئلة لوحدها (٢٠ ثانية للسؤال)، وإنت تتفرج على كل الموبايلات مرة واحدة. ممكن تدخل من موبايلك قبل ما تبدأ لو الغرفة فيها مكان.</p>
+    <div class="row">
+      <select id="b-n" aria-label="عدد اللاعبين"><option value="3">٣ بوتات</option><option value="5" selected>٥ بوتات</option><option value="8">٨ بوتات</option></select>
+      <button class="btn" type="button" id="b-go">ابدأ واتفرّج</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>العب كل الكراسي بنفسك</h2>
+    <p class="small muted">كل الموبايلات قدامك ومن غير بوتات: افتح الغرفة من أول مربع، والباقيين هيتملوا برقم الغرفة، اضغط «ادخل» في كل واحد.</p>
+    <div class="row">
+      <select id="m-n" aria-label="عدد اللاعبين"><option value="2">لاعبين</option><option value="3" selected>٣ لاعبين</option><option value="4">٤ لاعبين</option></select>
+      <button class="btn" type="button" id="m-go">جهّز الكراسي</button>
+    </div>
+  </div>
+</section>
+<div class="bar">
+  <label class="small">سرعة البوتات
+    <select id="speed"><option value="">عادية</option><option value="fast">سريعة</option></select></label>
+  <button class="btn ghost" type="button" id="clear">شيل الكل</button>
+  <p class="small muted">خلّي الصفحة دي مفتوحة. البوتات مش عارفة الإجابات (زي أي موبايل): بتخمّن سنة بين ١٩٠٠ و٢٠٢٤ أو رقم عشوائي. دي لتجربة الشاشات والقواعد، مش لمعرفة اللعبة ممتعة ولا لأ.</p>
+  <p class="msg" id="msg" role="alert"></p>
+</div>
+<main class="grid" id="grid" aria-label="اللاعبين"></main>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat("ar-EG");
+const NAMES = ["سارة","عمر","نور","كريم","ليلى","يوسف","هبة","زياد"];   // bots get "(بوت)" after the name
+const run = Date.now().toString(36);
+let pending = null;    // what to do when the first frame has opened a room: {n, bot}
+let count = 0;
+const rt = new URLSearchParams(location.search).get("rt");   // the tests' local realtime relay, passed on
+function url(o){
+  const q = new URLSearchParams();
+  q.set("seat", "t" + run + "-" + (++count));
+  if (o.bot) q.set("bot", "1");
+  if (o.name) q.set("name", o.name);
+  if (o.create) q.set("create", "1");
+  if (o.size) q.set("size", String(o.size));
+  if (o.bot && o.create){ q.set("rounds", "5"); q.set("secs", "20"); }
+  if ($("speed").value) q.set("speed", $("speed").value);
+  if (rt) q.set("rt", rt);
+  return "closest.html?" + q.toString() + (o.code ? "#" + o.code : "");
+}
+function seat(o){
+  const f = document.createElement("iframe");
+  f.src = url(o); f.title = (o.bot ? "بوت: " : "لاعب: ") + (o.name || "");
+  const wrap = document.createElement("div"); wrap.className = "seat";
+  const lbl = document.createElement("div"); lbl.className = "lbl";
+  const tag = document.createElement("span"); tag.className = "tag" + (o.bot ? "" : " me"); tag.textContent = o.bot ? "بوت" : "إنت";
+  lbl.append(tag, document.createTextNode(o.name || ""));
+  wrap.append(lbl, f); $("grid").append(wrap);
+}
+const say = (t, err) => { $("msg").textContent = t || ""; $("msg").classList.toggle("err", !!err); };
+function clear(){ $("grid").replaceChildren(); pending = null; say(""); }
+$("clear").addEventListener("click", clear);
+
+$("c-go").addEventListener("click", () => {
+  const code = $("c-code").value.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/\D/g, "");
+  if (!/^\d{5}$/.test(code)){ say("اكتب رقم الغرفة (٥ أرقام).", true); return; }
+  say("");
+  const n = Number($("c-n").value);
+  for (let i = 0; i < n; i++) seat({bot:true, name:NAMES[i] + " (بوت)", code});
+});
+$("b-go").addEventListener("click", () => {
+  clear();
+  const n = Number($("b-n").value);
+  pending = {n, bot:true, size:n};
+  seat({bot:true, name:NAMES[0] + " (بوت)", create:true, size:n});
+});
+$("m-go").addEventListener("click", () => {
+  clear();
+  const n = Number($("m-n").value);
+  pending = {n, bot:false};
+  seat({bot:false, name:"لاعب ١", create:true});
+});
+// the first frame opened a room: the others join it
+window.addEventListener("message", e => {
+  if (e.origin !== location.origin || !e.data || e.data.cl !== "room" || !pending) return;
+  const p = pending; pending = null;
+  for (let i = 1; i < p.n; i++)
+    seat(p.bot ? {bot:true, name:NAMES[i] + " (بوت)", code:e.data.code, size:p.size} : {bot:false, name:"لاعب " + nf.format(i + 1), code:e.data.code});
+  say("الغرفة " + e.data.code + (p.bot ? ": البوتات داخلة. تقدر تدخل من موبايلك بنفس الرقم لو لسه اللعبة مابدأتش." : ": اضغط «ادخل» في كل مربع."));
+});
+})();
+</script>
+</body>
+</html>

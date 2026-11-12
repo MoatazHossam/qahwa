@@ -190,6 +190,10 @@ dialog .hd{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .sbg summary{cursor:pointer;font-size:.9rem;color:var(--ink-2)}
 .sbg .kv{margin-top:6px}
 #sb-panel>summary{cursor:pointer;list-style:none}
+#cl-panel>summary{cursor:pointer;list-style:none}
+#cl-panel>summary::-webkit-details-marker{display:none}
+.clans{font-weight:700;font-size:1.1rem}
+.clnote{text-align:right}
 #sb-panel>summary::-webkit-details-marker{display:none}
 .review .checks p{margin:0}
 .bulk{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
@@ -426,6 +430,7 @@ async function load(){
     apiAll("/venue_who_prompts?select=id,ar,ar_std,en,status,shown_n,skipped_n", "created_at.asc,id.asc", "id").catch(() => [])]);
   D.party = party;
   D.sb = await apiAll("/sb_prompts?select=id,category,ar,en,version,alias_version,aliases,status,reviewed_at", "id.asc", "id").catch(() => []);
+  D.cl = await apiAll("/cl_questions?select=id,category,kind,ar,answer,unit,reveal,sources,notes,status,version,reviewed_at", "id.asc", "id").catch(() => []);
   D.who = Array.isArray(who) ? who : [];
   D.rooms = Array.isArray(rooms) ? rooms : []; D.accounts = typeof accounts === "number" ? accounts : null;
   D.brands = brands; D.packBrands = {};
@@ -892,6 +897,8 @@ function drafts(){
     ps:D.party.filter(p => p.status === "draft" && inBrand(brandsOfPack(p.pack_id))),
     // «نفس الدماغ»: not tied to a brand
     sbs:(D.sb || []).filter(x => x.status === "draft"),
+    // «أقرب رقم»: not tied to a brand
+    cls:(D.cl || []).filter(x => x.status === "draft"),
     // «مين يعرف الطاولة أكتر؟» in the cafés: not tied to a brand, so shown whatever the brand
     ws:(D.who || []).filter(w => w.status === "draft")};
 }
@@ -1090,24 +1097,94 @@ function sbPanel(){
         h("td",{class:"n"}, fmt((x.aliases || []).length)),
         h("td", null, h("button",{class:"btn",type:"button",onclick:() => editSb(x)}, "تعديل"))))))));
 }
+/* «أقرب رقم»: a question whose answer is a year or a number; the closest guess wins. Each answer was checked against
+   the sources listed with it; the notes say what a reviewer should know (rounding, a disputed date, which event is
+   meant). Players see the question, the unit, and after the round the answer with its line. */
+const CL_CAT = {egypt:"مصر", art:"فن", sport:"رياضة", life:"حياتنا"};
+const clNum = (n, kind) => kind === "year" ? new Intl.NumberFormat("ar-EG", {useGrouping:false}).format(n) : fmt(n);
+function clSources(x){
+  const ss = x.sources || [];
+  if (!ss.length) return h("p",{class:"muted small"}, "مفيش مصادر مكتوبة.");
+  return h("ul",{class:"checks"}, ss.map(s => h("li", null, h("a",{href:s.url,target:"_blank",rel:"noopener noreferrer"}, s.title || s.url))));
+}
+function reviewCl(x){
+  return h("article",{class:"report review","data-id":x.id},
+    h("div",{class:"where"}, h("span", null, "أقرب رقم"), h("span", null, CL_CAT[x.category] || x.category), h("span", null, x.kind === "year" ? "سنة" : "رقم"), h("span",{dir:"ltr"}, x.id)),
+    h("p",{class:"q"}, x.ar),
+    h("dl",{class:"kv"},
+      h("dt", null, "الإجابة"), h("dd",{class:"clans"}, clNum(x.answer, x.kind) + " " + x.unit),
+      x.reveal ? [h("dt", null, "بتظهر معاها"), h("dd", null, x.reveal)] : null,
+      x.notes ? [h("dt", null, "ملاحظات"), h("dd",{class:"muted small clnote",dir:"auto"}, x.notes)] : null),
+    h("details",{class:"sbg"}, h("summary", null, "المصادر (" + fmt((x.sources || []).length) + ")"), clSources(x)),
+    decide("cl_questions", x, () => editCl(x)));
+}
+function editCl(x){
+  openDialog([
+    h("div",{class:"hd"}, h("h2",{id:"dlg-title"}, "تعديل سؤال «أقرب رقم»")),
+    h("p",{class:"muted small"}, "سؤال إجابته سنة أو رقم صحيح، الناس تقدر تخمّنه بس نادرًا تعرفه بالظبط. لو الرقم فيه كسور، اختار وحدة تخلّيه رقم صحيح (بالكيلو، بالألف، بالمليون)."),
+    h("label",{class:"field"}, h("span", null, "السؤال بالمصري"), h("input",{type:"text",id:"c-ar",value:x.ar,maxlength:"200"})),
+    h("div",{class:"row2"},
+      h("label",{class:"field"}, h("span", null, "الإجابة (رقم صحيح)"), h("input",{type:"text",id:"c-ans",value:String(x.answer),inputmode:"numeric",dir:"ltr"})),
+      h("label",{class:"field"}, h("span", null, "الوحدة"), h("input",{type:"text",id:"c-unit",value:x.unit,maxlength:"24"}))),
+    h("div",{class:"row2"},
+      h("label",{class:"field"}, h("span", null, "النوع"), h("select",{id:"c-kind"}, [["year","سنة"],["number","رقم"]].map(([v,l]) => h("option",{value:v, selected:x.kind === v ? true : null}, l)))),
+      h("label",{class:"field"}, h("span", null, "الفئة"), h("select",{id:"c-cat"}, Object.entries(CL_CAT).map(([v,l]) => h("option",{value:v, selected:x.category === v ? true : null}, l))))),
+    h("label",{class:"field"}, h("span", null, "السطر اللي بيظهر مع الإجابة"), h("input",{type:"text",id:"c-rev",value:x.reveal || "",maxlength:"200"})),
+    h("label",{class:"field"}, h("span", null, "الحالة"), h("select",{id:"c-st"}, [["verified","شغال"],["draft","مستني مراجعة"],["retired","ملغي"]]
+      .map(([v,l]) => h("option",{value:v, selected:x.status === v ? true : null}, l)))),
+    h("p",{class:"muted small"}, "التعديل بيوصل من أول سؤال جديد يتفتح. السؤال المفتوح دلوقتي في أي غرفة بيكمل زي ما هو."),
+    footer(false, {
+      check(){
+        const ar = $("c-ar").value.trim(), a = $("c-ans").value.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[\s,٬]/g, ""), u = $("c-unit").value.trim();
+        if (ar.length < 4 || ar.length > 200) return "السؤال من ٤ لـ ٢٠٠ حرف.";
+        if (!/^[0-9]{1,9}$/.test(a)) return "الإجابة رقم صحيح من غير كسور، لحد ٩ أرقام.";
+        if ($("c-kind").value === "year" && (Number(a) < 1 || Number(a) > 2100)) return "السنة بين ١ و٢١٠٠.";
+        if (!u || u.length > 24) return "اكتب الوحدة (سنة، متر، مرة…).";
+        return "";
+      },
+      async run(){
+        const a = Number($("c-ans").value.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[\s,٬]/g, ""));
+        await api("/cl_questions?id=eq." + encodeURIComponent(x.id), {method:"PATCH", prefer:"return=minimal",
+          body:{ar:$("c-ar").value.trim(), answer:a, unit:$("c-unit").value.trim(), kind:$("c-kind").value, category:$("c-cat").value,
+            reveal:$("c-rev").value.trim() || null, status:$("c-st").value}});
+      }
+    })
+  ]);
+}
+// every question, with its status
+function clPanel(){
+  const all = D.cl || [];
+  if (!all.length) return null;
+  const n = st => all.filter(x => x.status === st).length;
+  return h("details",{class:"panel",id:"cl-panel"},
+    h("summary",{class:"hd"}, h("h2", null, "أسئلة «أقرب رقم» (" + fmt(all.length) + ")"),
+      h("span",{class:"muted small"}, "شغال " + fmt(n("verified")) + "، مستني " + fmt(n("draft")) + "، ملغي " + fmt(n("retired")) + ". اللعبة محتاجة ٥ شغالين على الأقل.")),
+    h("div",{class:"tbl-wrap"}, h("table",{class:"words"},
+      h("thead", null, h("tr", null, h("th", null, "السؤال"), h("th", null, "الإجابة"), h("th", null, "الفئة"), h("th", null, "الحالة"), h("th", null, ""))),
+      h("tbody", null, all.map(x => h("tr",{"data-id":x.id},
+        h("td",{class:"qcell"}, x.ar), h("td", null, clNum(x.answer, x.kind) + " " + x.unit), h("td", null, CL_CAT[x.category] || x.category),
+        h("td", null, h("span",{class:"tag" + (x.status === "retired" ? " bad" : x.status === "draft" ? " warn" : " ok")}, STATUS[x.status] || x.status)),
+        h("td", null, h("button",{class:"btn",type:"button",onclick:() => editCl(x)}, "تعديل"))))))));
+}
 function renderReview(){
-  const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length + R.ws.length + R.sbs.length;
+  const box = $("p-review"), R = drafts(), n = R.qs.length + R.rs.length + R.ps.length + R.ws.length + R.sbs.length + R.cls.length;
   $("c-review").textContent = fmt(n); $("c-review").classList.toggle("alert", n > 0);
   if (!n){ box.replaceChildren(h("div",{class:"panel"}, h("div",{class:"hd"}, h("h2", null, "المراجعة")),
-    h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها.")), sbPanel(), researchPanel()); return; }
+    h("p",{class:"empty"}, "مفيش حاجة مستنية مراجعة. الأسئلة والجولات والكلمات الجديدة بتنزل هنا الأول، ومش بتوصل للعب إلا لما تعتمدها.")), ...[sbPanel(), clPanel(), researchPanel()].filter(Boolean)); return; }
   const need = R.qs.map(q => q.id).filter(id => !(id in REV.sources));
   if (need.length) loadReviewExtras(need).catch(() => {});
   const parts = [h("div",{class:"hd"}, h("h2", null, "مستني مراجعة"), h("span",{class:"muted small"}, "اللي تعتمده بيبقى في اللعبة الجاية على طول. عدّل لو محتاج، أو ارفض."))];
   if (R.qs.length) parts.push(bulkBar("أسئلة", R.qs.length, "questions", R.qs.map(q => q.id)), ...R.qs.map(reviewQ));
   if (R.rs.length) parts.push(bulkBar("جولات أشهر إجابة", R.rs.length, "feud_rounds", R.rs.map(r => r.id)), ...R.rs.map(reviewRound));
   if (R.ws.length) parts.push(bulkBar("أسئلة «مين يعرف الطاولة أكتر؟» في المقاهي (اللعبة مش ظاهرة إلا لما تعتمد سؤال واحد على الأقل)", R.ws.length, "venue_who_prompts", R.ws.map(w => w.id)), ...R.ws.map(reviewWho));
+  if (R.cls.length) parts.push(bulkBar("أسئلة «أقرب رقم» (اللعبة بتبدأ لما يبقى فيه ٥ معتمدين على الأقل)", R.cls.length, "cl_questions", R.cls.map(x => x.id)), ...R.cls.map(reviewCl));
   if (R.sbs.length) parts.push(bulkBar("أسئلة «نفس الدماغ» (اللعبة بتبدأ لما يبقى فيه ٥ معتمدين على الأقل)", R.sbs.length, "sb_prompts", R.sbs.map(x => x.id)), ...R.sbs.map(reviewSb));
   if (R.ps.length) parts.push(bulkBar("كلمات الفقرات", R.ps.length, "party_items", R.ps.map(p => p.id)),
     h("div",{class:"tbl-wrap"}, h("table",{class:"words"},
       h("thead", null, h("tr", null, h("th", null, "الكلمة"), h("th", null, "الفقرة"), h("th",{class:"n"}, "المستوى"), h("th", null, "ممنوع يتقال"), h("th", null, ""))),
       h("tbody", null, R.ps.map(p => h("tr",{"data-id":p.id}, h("td",{class:"qcell"}, p.text), h("td", null, PARTY_KIND[p.kind] || p.kind), h("td",{class:"n"}, fmt(p.level)),
         h("td", null, (p.banned || []).join("، ")), h("td", null, decide("party_items", p, null))))))));
-  box.replaceChildren(h("div",{class:"panel"}, ...parts), sbPanel(), researchPanel());
+  box.replaceChildren(h("div",{class:"panel"}, ...parts), ...[sbPanel(), clPanel(), researchPanel()].filter(Boolean));
 }
 
 /* ---------- research history: how each question was written and checked, kept in the database ----------
